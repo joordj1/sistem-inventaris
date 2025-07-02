@@ -1,0 +1,112 @@
+* {
+    margin: 0;
+    padding: 0;
+}
+
+:root {
+    --teal: #20c997;
+    --orange: #fd7e14;
+    --pink: #d63384;
+    --purple: #6f42c1;
+    --maroon: #800000;
+    --magenta: #c2185b;
+}
+
+.fixed {
+    position: sticky;
+    z-index: 99;
+    top: 0;
+    left: 0;
+    right: 0;
+}
+.size100 {
+    width: 100%;
+}
+
+.overflowy{
+    overflow-x: scroll;
+}
+
+.card {
+    border: none;
+    border-radius: 10px;
+    transition: transform 0.2s;
+    padding: 20px;
+}
+
+.card:hover {
+    transform: scale(1.05);
+}
+
+.display-1 {
+    font-size: 4rem; /* Memperbesar ukuran icon */
+}
+
+.bg-teal {
+    background-color: var(--teal);
+}
+
+.bg-orange {
+    background-color: var(--orange);
+}
+
+.bg-pink {
+    background-color: var(--pink);
+}
+
+.bg-purple {
+    background-color: var(--purple);
+}
+
+.bg-maroon {
+    background-color: var(--maroon);
+}
+
+.bg-magenta {
+    background-color: var(--magenta);
+}
+a {
+    text-decoration: none;
+    color: black;
+}
+
+/* Table */
+table.table {
+    width: 1105px;
+    max-width: 1110px;
+    min-width: 100%;
+}
+.table thead th {
+    background-color: var(--teal);
+    color: white;
+}
+
+.table td, .table th {
+    vertical-align: middle;
+}
+.chart-container {
+    margin-top: 20px;
+}
+.footer-buttons {
+    margin-top: 20px;
+    text-align: right;
+}
+
+/* Form */
+
+.form-container {
+    background-color: #f8fff4;
+    padding: 20px;
+    border-radius: 5px;
+    border: 1px solid #d4edda;
+}
+.form-header {
+    background-color: #d4edda;
+    padding: 10px;
+    border-radius: 5px 5px 0 0;
+    border-bottom: 1px solid #c3e6cb;
+    margin-bottom: 20px;
+}
+.form-header h5 {
+    margin: 0;
+}

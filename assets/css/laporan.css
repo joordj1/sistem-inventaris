@@ -1,0 +1,49 @@
+/* Custom CSS */
+* { margin: 0; padding: 0; }
+:root { --teal: #20c997; }
+.table-container { overflow-x: auto; margin-top: 20px; }
+.bg-teal { background-color: var(--teal); }
+.footer-buttons { margin-top: 20px; text-align: right; }
+
+/* CSS untuk mencetak hanya judul dan tabel */
+@media print {
+    body * {
+        visibility: hidden;
+    }
+    .print-area, .print-area * {
+        visibility: visible;
+    }
+    .print-area {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        margin: 0 auto;
+    }
+    
+    /* Mengatur ukuran cetak agar sesuai layar */
+    html, body {
+        width: 100vw;
+        height: auto;
+        margin: 0;
+        padding: 0;
+        overflow: visible;
+    }
+
+    /* Menjaga tabel tetap berada di tengah */
+    .container {
+        max-width: 100%;
+        padding: 20px;
+    }
+
+    /* Atur ukuran font dan spasi tabel saat mencetak */
+    table {
+        font-size: 10px;
+    }
+    th, td {
+        padding: 4px 8px; /* Mengurangi spasi sel */
+    }
+    h2 {
+        font-size: 18px; /* Mengurangi ukuran heading */
+    }
+}
