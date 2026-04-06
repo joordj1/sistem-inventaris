@@ -11,6 +11,8 @@ $query = "SELECT st.no_invoice, p.kode_produk, p.nama_produk,
                  st.tipe_transaksi, 
                  CASE WHEN st.tipe_transaksi = 'masuk' THEN st.jumlah ELSE 0 END AS jumlah_masuk,
                  CASE WHEN st.tipe_transaksi = 'keluar' THEN st.jumlah ELSE 0 END AS jumlah_keluar,
+                 COALESCE(st.harga_satuan, p.harga_default, p.harga_satuan, 0) AS harga_satuan_transaksi,
+                 (st.jumlah * COALESCE(st.harga_satuan, p.harga_default, p.harga_satuan, 0)) AS total_transaksi,
                  st.tanggal, st.keterangan
           FROM StokTransaksi st
           JOIN Produk p ON st.id_produk = p.id_produk";
@@ -58,6 +60,8 @@ while ($transaksi = $result->fetch_assoc()) {
                     <th>Tipe Transaksi</th>
                     <th>Jumlah Masuk</th>
                     <th>Jumlah Keluar</th>
+                    <th>Harga Satuan</th>
+                    <th>Total</th>
                     <th>Tanggal</th>
                     <th>Keterangan</th>
                 </tr>
@@ -74,6 +78,8 @@ while ($transaksi = $result->fetch_assoc()) {
                     echo "<td class='text-center'>{$transaksi['tipe_transaksi']}</td>";
                     echo "<td class='text-end'>{$transaksi['jumlah_masuk']}</td>";
                     echo "<td class='text-end'>{$transaksi['jumlah_keluar']}</td>";
+                    echo "<td class='text-end'>" . formatRupiah($transaksi['harga_satuan_transaksi']) . "</td>";
+                    echo "<td class='text-end'>" . formatRupiah($transaksi['total_transaksi']) . "</td>";
                     echo "<td class='text-center'>{$transaksi['tanggal']}</td>";
                     echo "<td>{$transaksi['keterangan']}</td>";
                     echo "</tr>";
@@ -86,7 +92,7 @@ while ($transaksi = $result->fetch_assoc()) {
                     <th colspan="5" class="text-center">Total:</th>
                     <th class="text-end"><?= $totalMasuk ?></th>
                     <th class="text-end"><?= $totalKeluar ?></th>
-                    <th colspan="2"></th>
+                    <th colspan="4"></th>
                 </tr>
             </tfoot>
         </table>
