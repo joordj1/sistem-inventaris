@@ -32,6 +32,8 @@
                 <th>Tipe Transaksi</th>
                 <th>Jumlah Masuk</th>
                 <th>Jumlah Keluar</th>
+                <th>Harga Satuan</th>
+                <th>Total</th>
                 <th>Tanggal</th>
                 <th>Keterangan</th>
             </tr>
@@ -43,6 +45,8 @@
                              stoktransaksi.no_invoice, stoktransaksi.tipe_transaksi, 
                              CASE WHEN stoktransaksi.tipe_transaksi = 'masuk' THEN stoktransaksi.jumlah ELSE 0 END AS jumlah_masuk, 
                              CASE WHEN stoktransaksi.tipe_transaksi = 'keluar' THEN stoktransaksi.jumlah ELSE 0 END AS jumlah_keluar,
+                             COALESCE(stoktransaksi.harga_satuan, produk.harga_default, produk.harga_satuan, 0) AS harga_satuan_transaksi,
+                             (stoktransaksi.jumlah * COALESCE(stoktransaksi.harga_satuan, produk.harga_default, produk.harga_satuan, 0)) AS total_transaksi,
                              stoktransaksi.tanggal, stoktransaksi.keterangan
                       FROM stoktransaksi
                       INNER JOIN produk ON stoktransaksi.id_produk = produk.id_produk";
@@ -73,13 +77,15 @@
                     <td class="text-center"><?= ucfirst($row['tipe_transaksi']) ?></td>
                     <td class="text-end"><?= $row['jumlah_masuk'] ?></td>
                     <td class="text-end"><?= $row['jumlah_keluar'] ?></td>
+                    <td class="text-end"><?= 'Rp ' . number_format((float) $row['harga_satuan_transaksi'], 0, ',', '.') ?></td>
+                    <td class="text-end"><?= 'Rp ' . number_format((float) $row['total_transaksi'], 0, ',', '.') ?></td>
                     <td><?= $row['tanggal'] ?></td>
                     <td><?= $row['keterangan'] ?></td>
                 </tr>
             <?php endwhile; ?>
         <?php else: ?>
             <tr>
-                <td colspan="9" class="text-center">Tidak ada data transaksi yang ditemukan.</td>
+                <td colspan="11" class="text-center">Tidak ada data transaksi yang ditemukan.</td>
             </tr>
         <?php endif; ?>
         </tbody>
