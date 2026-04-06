@@ -10,31 +10,29 @@
 <body>
     
 <?php
-session_start();
-// Hanya admin boleh simpan user
-if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
-    http_response_code(403);
-    echo "Akses ditolak";
+include '../koneksi/koneksi.php';
+require_auth_roles(['admin'], [
+    'response' => 'page',
+    'login_redirect' => '../login.php',
+    'forbidden_redirect' => '../index.php?page=dashboard',
+]);
+
+$nama = trim((string) ($_POST['nama'] ?? ''));
+$username = trim((string) ($_POST['username'] ?? ''));
+$passwordRaw = (string) ($_POST['password'] ?? '');
+$password = md5($passwordRaw);
+$email = trim((string) ($_POST['email'] ?? ''));
+$role = normalize_user_role($_POST['role'] ?? null);
+
+if ($nama === '' || $username === '' || $passwordRaw === '' || $email === '') {
+    echo "Data user wajib diisi lengkap.";
     exit;
 }
 
-// Include koneksi database
-include '../koneksi/koneksi.php';
-
-// Ambil data dari form
-$nama = $_POST['nama'];
-$username = $_POST['username'];
-$password = md5($_POST['password']); // Enkripsi password menggunakan MD5
-$email = $_POST['email'];
-$role = $_POST['role'];
-// Normalisasi role: legacy values untuk pengalaman kompatibel
-if ($role === 'leader') {
-    $role = 'user';
-}
-
-// Query untuk memeriksa apakah username sudah ada
-$queryCheckUsername = "SELECT * FROM user WHERE username = '$username'";
-$resultCheckUsername = $koneksi->query($queryCheckUsername);
+$stmtCheck = $koneksi->prepare("SELECT id_user FROM user WHERE username = ? LIMIT 1");
+$stmtCheck->bind_param('s', $username);
+$stmtCheck->execute();
+$resultCheckUsername = $stmtCheck->get_result();
 
 // Cek apakah username sudah ada
 if ($resultCheckUsername->num_rows > 0) {
@@ -53,17 +51,14 @@ if ($resultCheckUsername->num_rows > 0) {
 }
 
 // Query untuk menyimpan data user ke database
-$query = "INSERT INTO user (nama, username, password, email, role, created_at) 
-          VALUES ('$nama', '$username', '$password', '$email', '$role', NOW())";
+$stmtInsert = $koneksi->prepare("INSERT INTO user (nama, username, password, email, role, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
+$stmtInsert->bind_param('sssss', $nama, $username, $password, $email, $role);
 
-// Eksekusi query
-if ($koneksi->query($query) === TRUE) {
-    // Redirect ke halaman data user setelah berhasil
+if ($stmtInsert->execute()) {
     header('Location: ../index.php?page=user');
     exit;
 } else {
-    // Jika gagal, tampilkan error
-    echo "Error: " . $query . "<br>" . $koneksi->error;
+    echo "Error: " . $koneksi->error;
 }
 ?>
 
