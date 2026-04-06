@@ -1,6 +1,10 @@
 <?php
-session_start();
 include '../koneksi/koneksi.php';
+require_auth_roles(['admin', 'petugas'], [
+    'response' => 'page',
+    'login_redirect' => '../login.php',
+    'forbidden_redirect' => '../index.php?page=data_produk',
+]);
 
 function normalize_tracking_value($value) {
     return strtolower(trim((string) ($value ?? '')));
@@ -201,6 +205,29 @@ if ($produk['tipe_barang'] === 'asset') {
             'note' => $note,
             'id_user_changed' => $operator
         ]);
+
+        log_activity($koneksi, [
+            'id_user' => $operator,
+            'role_user' => get_current_user_role(),
+            'action_name' => 'tracking_unit_' . ($activity_type !== '' ? $activity_type : 'update'),
+            'entity_type' => 'unit',
+            'entity_id' => $id_unit,
+            'entity_label' => $unit['kode_unit'] ?? $unit['serial_number'] ?? ('Unit #' . $id_unit),
+            'description' => 'Tracking unit asset diperbarui',
+            'id_produk' => $id_produk,
+            'id_unit_barang' => $id_unit,
+            'id_gudang' => $id_gudang_baru ?? ($unit['id_gudang'] ?? null),
+            'metadata_json' => [
+                'activity_type' => $activity_type,
+                'status_sebelum' => $unit['status'],
+                'status_sesudah' => $fields['status'] ?? $unit['status'],
+                'lokasi_sebelum' => $unitLokasiSebelum,
+                'lokasi_sesudah' => $unitLokasiSesudah,
+                'id_user_sebelum' => $unit['id_user'],
+                'id_user_sesudah' => $fields['id_user'] ?? $unit['id_user'],
+                'note' => $note,
+            ],
+        ]);
     }
 
     if ($processedAny === 0) {
@@ -250,6 +277,30 @@ try {
         'activity_type' => $activity_type,
         'note' => $note,
         'id_user_changed' => $operator
+    ]);
+
+    log_activity($koneksi, [
+        'id_user' => $operator,
+        'role_user' => get_current_user_role(),
+        'action_name' => 'tracking_produk_' . ($activity_type !== '' ? $activity_type : 'update'),
+        'entity_type' => 'produk',
+        'entity_id' => $id_produk,
+        'entity_label' => ($produk['kode_produk'] ?? 'Produk') . ' - ' . ($produk['nama_produk'] ?? ''),
+        'description' => 'Tracking barang diperbarui',
+        'id_produk' => $id_produk,
+        'id_gudang' => $id_gudang_baru ?? ($produk['id_gudang'] ?? null),
+        'metadata_json' => [
+            'activity_type' => $activity_type,
+            'status_sebelum' => $produk['status'],
+            'status_sesudah' => $status_baru_produk,
+            'kondisi_sebelum' => $produk['kondisi'],
+            'kondisi_sesudah' => $kondisi_baru_produk,
+            'lokasi_sebelum' => $lokasi_sebelum,
+            'lokasi_sesudah' => $lokasi_sesudah,
+            'id_user_sebelum' => $produk['id_user'],
+            'id_user_sesudah' => $id_user_baru,
+            'note' => $note,
+        ],
     ]);
 
     if ($activity_type === 'pinjam') {
