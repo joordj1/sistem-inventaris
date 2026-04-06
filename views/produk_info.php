@@ -3,11 +3,16 @@ function formatRupiah($angka) {
     return 'Rp ' . number_format($angka, 0, ',', '.');
 }
 
+$canManageInventory = inventory_user_can_manage();
+
 if (isset($_GET['id_produk']) || isset($_GET['kode_produk'])) {
     $id = null;
     $kode = null;
 $query = "SELECT produk.id_produk, produk.kode_produk, produk.nama_produk, kategori.nama_kategori,
-                 produk.harga_satuan, produk.jumlah_stok, produk.satuan, produk.total_nilai,
+                 produk.deskripsi,
+                 COALESCE(NULLIF(produk.harga_default, 0), produk.harga_satuan, 0) AS harga_default_view,
+                 produk.jumlah_stok, produk.satuan,
+                 (COALESCE(NULLIF(produk.harga_default, 0), produk.harga_satuan, 0) * produk.jumlah_stok) AS total_nilai_view,
                  produk.gambar_produk, produk.status, produk.kondisi, produk.lokasi_custom, produk.tersedia,
                  produk.last_tracked_at, produk.id_user, produk.id_gudang, produk.tipe_barang,
                  gudang.nama_gudang
@@ -90,6 +95,7 @@ $query = "SELECT produk.id_produk, produk.kode_produk, produk.nama_produk, kateg
     $kondisiOptions = ['baik','rusak','diperbaiki','usang','lainnya'];
     $users = $koneksi->query("SELECT id_user, nama FROM user");
     $gudangs = $koneksi->query("SELECT id_gudang, nama_gudang FROM gudang");
+    $inventoryNotes = fetch_inventory_notes($koneksi, ['id_produk' => $data['id_produk']], 50);
 
     ?>
 
@@ -120,6 +126,7 @@ $query = "SELECT produk.id_produk, produk.kode_produk, produk.nama_produk, kateg
                 <table class="table table-bordered table-hover">
                     <tr><td>Kode Produk</td><td><?= htmlspecialchars($data['kode_produk']) ?></td></tr>
                     <tr><td>Nama Produk</td><td><?= htmlspecialchars($data['nama_produk']) ?></td></tr>
+                    <tr><td>Deskripsi</td><td><?= nl2br(htmlspecialchars($data['deskripsi'] ?? '-')) ?></td></tr>
                     <tr><td>Kategori</td><td><?= htmlspecialchars($data['nama_kategori'] ?? 'Tidak ada') ?></td></tr>
                     <tr><td>Gudang</td><td><?= htmlspecialchars($data['nama_gudang'] ?? 'Tidak ada') ?></td></tr>
                     <tr><td>Lokasi Custom</td><td><?= htmlspecialchars($data['lokasi_custom'] ?? '-') ?></td></tr>
@@ -150,6 +157,8 @@ $query = "SELECT produk.id_produk, produk.kode_produk, produk.nama_produk, kateg
                     <tr><td>Tersedia</td><td><?= $data['tersedia'] ? 'Ya' : 'Tidak' ?></td></tr>
                     <tr><td>Jumlah Stok</td><td><?= intval($data['jumlah_stok']) ?></td></tr>
                     <?php endif; ?>
+                    <tr><td>Harga Default</td><td><?= formatRupiah($data['harga_default_view'] ?? 0) ?></td></tr>
+                    <tr><td>Total Nilai</td><td><?= formatRupiah($data['total_nilai_view'] ?? 0) ?></td></tr>
                     <tr><td>Dipinjam/Oleh</td><td><?= htmlspecialchars($current_pengguna ?? '-') ?></td></tr>
                     <tr><td>Update Terakhir</td><td><?= htmlspecialchars($data['last_tracked_at']) ?></td></tr>
                 </table>
@@ -159,6 +168,9 @@ $query = "SELECT produk.id_produk, produk.kode_produk, produk.nama_produk, kateg
         <div class="row mb-4">
             <div class="col-12">
                 <h4>Aksi Tracking</h4>
+                <?php if (!$canManageInventory): ?>
+                <div class="alert alert-secondary">Role `viewer` hanya dapat melihat detail dan riwayat tracking.</div>
+                <?php else: ?>
                 <form action="actions/update_tracking.php" method="post">
                     <input type="hidden" name="id_produk" value="<?= $data['id_produk'] ?>">
 
@@ -247,6 +259,7 @@ $query = "SELECT produk.id_produk, produk.kode_produk, produk.nama_produk, kateg
                         <a href="index.php?page=data_produk" class="btn btn-secondary">Kembali</a>
                     </div>
                 </form>
+                <?php endif; ?>
             </div>
         </div>
 
@@ -285,6 +298,77 @@ $query = "SELECT produk.id_produk, produk.kode_produk, produk.nama_produk, kateg
             </div>
         </div>
         <?php endif; ?>
+
+        <div class="row mb-4">
+            <div class="col-12">
+                <h4>Catatan Barang & Transaksi</h4>
+                <?php if ($canManageInventory): ?>
+                <form action="actions/simpan_catatan.php" method="post" class="border rounded p-3 mb-3 bg-light">
+                    <input type="hidden" name="id_produk" value="<?= intval($data['id_produk']) ?>">
+                    <input type="hidden" name="id_gudang" value="<?= intval($data['id_gudang'] ?? 0) ?>">
+                    <input type="hidden" name="tipe_target" value="produk">
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label class="form-label">Kategori Catatan</label>
+                            <select name="kategori_catatan" class="form-select" required>
+                                <option value="umum">Umum</option>
+                                <option value="kerusakan">Kerusakan</option>
+                                <option value="selisih">Selisih</option>
+                                <option value="servis">Servis</option>
+                                <option value="bug">Bug</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Judul</label>
+                            <input type="text" name="judul" class="form-control" placeholder="Contoh: Selisih stok opname">
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label">Catatan</label>
+                            <input type="text" name="catatan" class="form-control" placeholder="Isi catatan barang atau transaksi" required>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <button type="submit" class="btn btn-outline-primary">Simpan Catatan</button>
+                    </div>
+                </form>
+                <?php endif; ?>
+
+                <div class="table-responsive compact-table-container">
+                <table class="table table-sm table-bordered table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Tanggal</th>
+                            <th>Kategori</th>
+                            <th>Target</th>
+                            <th>Judul</th>
+                            <th>Catatan</th>
+                            <th>Ref. Transaksi</th>
+                            <th>Pembuat</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (!empty($inventoryNotes)): ?>
+                            <?php foreach ($inventoryNotes as $index => $noteRow): ?>
+                                <tr>
+                                    <td><?= $index + 1 ?></td>
+                                    <td><?= htmlspecialchars($noteRow['created_at'] ?? '-') ?></td>
+                                    <td><?= htmlspecialchars(ucfirst($noteRow['kategori_catatan'] ?? 'umum')) ?></td>
+                                    <td><?= htmlspecialchars(ucfirst($noteRow['tipe_target'] ?? 'produk')) ?></td>
+                                    <td><?= htmlspecialchars($noteRow['judul'] ?? '-') ?></td>
+                                    <td><?= htmlspecialchars($noteRow['catatan'] ?? '-') ?></td>
+                                    <td><?= htmlspecialchars($noteRow['no_invoice'] ?? '-') ?></td>
+                                    <td><?= htmlspecialchars($noteRow['nama_pembuat'] ?? '-') ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <tr><td colspan="8" class="text-center">Belum ada catatan barang/transaksi.</td></tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+                </div>
+            </div>
+        </div>
 
         <div class="row">
             <div class="col-12">
