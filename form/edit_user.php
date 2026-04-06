@@ -1,11 +1,16 @@
 <?php
-
+require_auth_roles(['admin'], [
+    'login_redirect' => 'login.php',
+    'forbidden_redirect' => 'index.php?page=dashboard',
+]);
 
 // Ambil data user berdasarkan id_user
-$id_user = isset($_GET['id_user']) ? $_GET['id_user'] : '';
+$id_user = isset($_GET['id_user']) ? intval($_GET['id_user']) : 0;
 if ($id_user) {
-    $query = "SELECT * FROM user WHERE id_user = '$id_user'";
-    $result = $koneksi->query($query);
+    $stmt = $koneksi->prepare("SELECT * FROM user WHERE id_user = ?");
+    $stmt->bind_param('i', $id_user);
+    $stmt->execute();
+    $result = $stmt->get_result();
     $data = $result->fetch_assoc();
 } else {
     echo "ID User tidak ditemukan!";
@@ -14,15 +19,16 @@ if ($id_user) {
 
 // Proses submit form
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $nama = $_POST['nama'];
-    $username = $_POST['username'];
-    $password = $_POST['password'] ? md5($_POST['password']) : $data['password']; // Jika password kosong, gunakan password lama
-    $email = $_POST['email'];
-    $role = $_POST['role'];
+    $nama = trim((string) ($_POST['nama'] ?? ''));
+    $username = trim((string) ($_POST['username'] ?? ''));
+    $password = !empty($_POST['password']) ? md5($_POST['password']) : $data['password'];
+    $email = trim((string) ($_POST['email'] ?? ''));
+    $role = normalize_user_role($_POST['role'] ?? null);
 
-    // Cek apakah username sudah ada di database (selain user yang sedang diedit)
-    $query_check = "SELECT id_user FROM user WHERE username = '$username' AND id_user != '$id_user'";
-    $result_check = $koneksi->query($query_check);
+    $stmtCheck = $koneksi->prepare("SELECT id_user FROM user WHERE username = ? AND id_user != ?");
+    $stmtCheck->bind_param('si', $username, $id_user);
+    $stmtCheck->execute();
+    $result_check = $stmtCheck->get_result();
 
     if ($result_check->num_rows > 0) {
         // Jika username sudah ada, tampilkan alert
@@ -39,17 +45,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    // Query untuk update data user
-    $query_update = "UPDATE user SET nama = '$nama', username = '$username', password = '$password', email = '$email', role = '$role' WHERE id_user = '$id_user'";
+    $stmtUpdate = $koneksi->prepare("UPDATE user SET nama = ?, username = ?, password = ?, email = ?, role = ? WHERE id_user = ?");
+    $stmtUpdate->bind_param('sssssi', $nama, $username, $password, $email, $role, $id_user);
 
-    // Eksekusi query
-    if ($koneksi->query($query_update) === TRUE) {
-        // Redirect ke halaman data user setelah berhasil
+    if ($stmtUpdate->execute()) {
         header('Location: index.php?page=user');
         exit;
     } else {
-        // Jika gagal, tampilkan error
-        echo "Error: " . $query_update . "<br>" . $koneksi->error;
+        echo "Error: " . $koneksi->error;
     }
 }
 ?>
@@ -79,8 +82,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="mb-3">
             <label for="role" class="form-label">Role</label>
             <select class="form-select" id="role" name="role" required>
-                <option value="admin" <?= ($data['role'] == 'admin') ? 'selected' : ''; ?>>Admin</option>
-                <option value="leader" <?= ($data['role'] == 'leader') ? 'selected' : ''; ?>>Leader</option>
+                <option value="admin" <?= (normalize_user_role($data['role']) === 'admin') ? 'selected' : ''; ?>>Admin</option>
+                <option value="petugas" <?= (normalize_user_role($data['role']) === 'petugas') ? 'selected' : ''; ?>>Petugas</option>
+                <option value="viewer" <?= (normalize_user_role($data['role']) === 'viewer') ? 'selected' : ''; ?>>Viewer</option>
             </select>
         </div>
         <div class="d-flex justify-content-between">

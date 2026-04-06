@@ -1,17 +1,25 @@
 <?php
 include '../koneksi/koneksi.php'; 
+require_auth_roles(['admin'], [
+    'response' => 'json',
+    'login_redirect' => '../login.php',
+    'forbidden_redirect' => '../index.php?page=dashboard',
+]);
 
 if (isset($_GET['id_user'])) {
-    $id_user = $_GET['id_user'];
+    $id_user = intval($_GET['id_user']);
 
-    // Query untuk menghapus user dari tabel user
-    $sql = "DELETE FROM user WHERE id_user = $id_user";
+    if (!empty($_SESSION['id_user']) && intval($_SESSION['id_user']) === $id_user) {
+        echo json_encode(['success' => false, 'error' => 'User aktif tidak boleh menghapus akunnya sendiri.']);
+        exit;
+    }
 
-    if ($koneksi->query($sql) === TRUE) {
-        // Mengembalikan respons JSON jika penghapusan berhasil
+    $stmt = $koneksi->prepare("DELETE FROM user WHERE id_user = ?");
+    $stmt->bind_param('i', $id_user);
+
+    if ($stmt->execute()) {
         echo json_encode(['success' => true]);
     } else {
-        // Mengembalikan respons JSON jika penghapusan gagal
         echo json_encode(['success' => false]);
     }
 } else {

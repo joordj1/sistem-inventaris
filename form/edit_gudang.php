@@ -1,11 +1,20 @@
 <?php
+if (!isset($koneksi) || !($koneksi instanceof mysqli)) {
+    include __DIR__ . '/../koneksi/koneksi.php';
+}
+require_auth_roles(['admin', 'petugas'], [
+    'login_redirect' => 'login.php',
+    'forbidden_redirect' => 'index.php?page=data_gudang',
+]);
+
 // Mendapatkan ID gudang yang ingin diedit dari URL
-$id_gudang = isset($_GET['id_gudang']) ? $_GET['id_gudang'] : '';
+$id_gudang = isset($_GET['id_gudang']) ? intval($_GET['id_gudang']) : 0;
 
 if ($id_gudang) {
-    // Query untuk mengambil data gudang berdasarkan ID
-    $query = "SELECT * FROM gudang WHERE id_gudang = '$id_gudang'";
-    $result = $koneksi->query($query);
+    $stmt = $koneksi->prepare("SELECT * FROM gudang WHERE id_gudang = ?");
+    $stmt->bind_param('i', $id_gudang);
+    $stmt->execute();
+    $result = $stmt->get_result();
     $data = $result->fetch_assoc();
 } else {
     echo "ID Gudang tidak ditemukan!";

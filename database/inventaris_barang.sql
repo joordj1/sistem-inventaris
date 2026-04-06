@@ -73,11 +73,19 @@ CREATE TABLE `produk` (
   `id_produk` int NOT NULL,
   `kode_produk` varchar(50) NOT NULL,
   `nama_produk` varchar(100) NOT NULL,
-  `kategori_id` int DEFAULT NULL,
+  `id_kategori` int DEFAULT NULL,
+  `id_gudang` int DEFAULT NULL,
+  `id_user` int DEFAULT NULL,
+  `status` ENUM('tersedia','dipinjam','sedang digunakan','dipindahkan','dalam perbaikan','rusak','tidak aktif') NOT NULL DEFAULT 'tersedia',
+  `kondisi` ENUM('baik','rusak','diperbaiki','usang','lainnya') NOT NULL DEFAULT 'baik',
+  `lokasi_custom` varchar(255) DEFAULT NULL,
+  `harga_default` decimal(15,2) NOT NULL DEFAULT '0.00',
   `harga_satuan` decimal(15,2) NOT NULL,
   `jumlah_stok` int NOT NULL DEFAULT '0',
   `satuan` varchar(50) NOT NULL,
-  `total_nilai` decimal(15,2) GENERATED ALWAYS AS ((`jumlah_stok` * `harga_satuan`)) STORED,
+  `total_nilai` decimal(15,2) GENERATED ALWAYS AS ((`jumlah_stok` * `harga_default`)) STORED,
+  `tersedia` TINYINT(1) NOT NULL DEFAULT 1,
+  `last_tracked_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `gambar_produk` varchar(255) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -85,11 +93,11 @@ CREATE TABLE `produk` (
 -- Dumping data for table `produk`
 --
 
-INSERT INTO `produk` (`id_produk`, `kode_produk`, `nama_produk`, `kategori_id`, `harga_satuan`, `jumlah_stok`, `satuan`, `gambar_produk`) VALUES
-(50, 'P-001', 'Kain Katun Premium', 18, '100000.00', 50, 'M', 'kain katun.jpeg'),
-(51, 'P-002', 'Kain Katun Polyester Campuran', 19, '90000.00', 50, 'M', 'KAIN-POLYESTER.png'),
-(52, 'P-003', 'Kemeja Pria', 20, '150000.00', 50, 'Pcs', 'kemeja pria.jpeg'),
-(53, 'P-004', 'Kaos Unisex', 21, '80000.00', 30, 'Pcs', 'kaos.jpeg');
+INSERT INTO `produk` (`id_produk`, `kode_produk`, `nama_produk`, `id_kategori`, `harga_default`, `harga_satuan`, `jumlah_stok`, `satuan`, `gambar_produk`) VALUES
+(50, 'P-001', 'Kain Katun Premium', 18, '100000.00', '100000.00', 50, 'M', 'kain katun.jpeg'),
+(51, 'P-002', 'Kain Katun Polyester Campuran', 19, '90000.00', '90000.00', 50, 'M', 'KAIN-POLYESTER.png'),
+(52, 'P-003', 'Kemeja Pria', 20, '150000.00', '150000.00', 50, 'Pcs', 'kemeja pria.jpeg'),
+(53, 'P-004', 'Kaos Unisex', 21, '80000.00', '80000.00', 30, 'Pcs', 'kaos.jpeg');
 
 -- --------------------------------------------------------
 
@@ -99,8 +107,8 @@ INSERT INTO `produk` (`id_produk`, `kode_produk`, `nama_produk`, `kategori_id`, 
 
 CREATE TABLE `stokgudang` (
   `id_stok_gudang` int NOT NULL,
-  `gudang_id` int NOT NULL,
-  `produk_id` int NOT NULL,
+  `id_gudang` int NOT NULL,
+  `id_produk` int NOT NULL,
   `jumlah_stok` int NOT NULL DEFAULT '0'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -108,7 +116,7 @@ CREATE TABLE `stokgudang` (
 -- Dumping data for table `stokgudang`
 --
 
-INSERT INTO `stokgudang` (`id_stok_gudang`, `gudang_id`, `produk_id`, `jumlah_stok`) VALUES
+INSERT INTO `stokgudang` (`id_stok_gudang`, `id_gudang`, `id_produk`, `jumlah_stok`) VALUES
 (31, 8, 50, 8000),
 (32, 8, 51, 0),
 (33, 7, 52, 0),
@@ -122,10 +130,11 @@ INSERT INTO `stokgudang` (`id_stok_gudang`, `gudang_id`, `produk_id`, `jumlah_st
 
 CREATE TABLE `stoktransaksi` (
   `id_transaksi` int NOT NULL,
-  `produk_id` int NOT NULL,
+  `id_produk` int NOT NULL,
   `no_invoice` varchar(100) DEFAULT NULL,
   `tipe_transaksi` enum('masuk','keluar') NOT NULL,
   `jumlah` int NOT NULL,
+  `harga_satuan` decimal(15,2) DEFAULT NULL,
   `tanggal` date NOT NULL,
   `keterangan` varchar(255) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -134,13 +143,13 @@ CREATE TABLE `stoktransaksi` (
 -- Dumping data for table `stoktransaksi`
 --
 
-INSERT INTO `stoktransaksi` (`id_transaksi`, `produk_id`, `no_invoice`, `tipe_transaksi`, `jumlah`, `tanggal`, `keterangan`) VALUES
-(21, 50, 'INV-001', 'masuk', 100, '2024-11-12', 'Pembelian dari PT. Indonusa\r\n'),
-(22, 51, 'INV-002', 'masuk', 80, '2024-11-12', 'Pembelian dari PT. Indahbutik'),
-(23, 50, 'INV-003', 'keluar', 50, '2024-11-13', 'Produk keluar gudang untuk di buatkan kemeja 50Pcs'),
-(24, 52, 'INV-005', 'masuk', 50, '2024-11-14', 'Barang Masuk Dari Pabrik'),
-(25, 51, 'INV-006', 'keluar', 30, '2024-11-12', 'Barang Keluar Untuk Dibuatkan kaos sebanyak 50 Pcs'),
-(26, 53, 'INV-007', 'masuk', 30, '2024-11-13', 'Barang masuk Dari Gudang');
+INSERT INTO `stoktransaksi` (`id_transaksi`, `id_produk`, `no_invoice`, `tipe_transaksi`, `jumlah`, `harga_satuan`, `tanggal`, `keterangan`) VALUES
+(21, 50, 'INV-001', 'masuk', 100, '100000.00', '2024-11-12', 'Pembelian dari PT. Indonusa\r\n'),
+(22, 51, 'INV-002', 'masuk', 80, '90000.00', '2024-11-12', 'Pembelian dari PT. Indahbutik'),
+(23, 50, 'INV-003', 'keluar', 50, '100000.00', '2024-11-13', 'Produk keluar gudang untuk di buatkan kemeja 50Pcs'),
+(24, 52, 'INV-005', 'masuk', 50, '150000.00', '2024-11-14', 'Barang Masuk Dari Pabrik'),
+(25, 51, 'INV-006', 'keluar', 30, '90000.00', '2024-11-12', 'Barang Keluar Untuk Dibuatkan kaos sebanyak 50 Pcs'),
+(26, 53, 'INV-007', 'masuk', 30, '80000.00', '2024-11-13', 'Barang masuk Dari Gudang');
 
 -- --------------------------------------------------------
 
@@ -190,15 +199,17 @@ ALTER TABLE `kategori`
 ALTER TABLE `produk`
   ADD PRIMARY KEY (`id_produk`),
   ADD UNIQUE KEY `kode_produk` (`kode_produk`),
-  ADD KEY `kategori_id` (`kategori_id`);
+  ADD KEY `id_kategori` (`id_kategori`),
+  ADD KEY `id_gudang` (`id_gudang`),
+  ADD KEY `id_user` (`id_user`);
 
 --
 -- Indexes for table `stokgudang`
 --
 ALTER TABLE `stokgudang`
   ADD PRIMARY KEY (`id_stok_gudang`),
-  ADD KEY `gudang_id` (`gudang_id`),
-  ADD KEY `produk_id` (`produk_id`);
+  ADD KEY `id_gudang` (`id_gudang`),
+  ADD KEY `id_produk` (`id_produk`);
 
 --
 -- Indexes for table `stoktransaksi`
@@ -206,7 +217,7 @@ ALTER TABLE `stokgudang`
 ALTER TABLE `stoktransaksi`
   ADD PRIMARY KEY (`id_transaksi`),
   ADD UNIQUE KEY `no_invoice` (`no_invoice`),
-  ADD KEY `produk_id` (`produk_id`);
+  ADD KEY `id_produk` (`id_produk`);
 
 --
 -- Indexes for table `user`
@@ -264,22 +275,89 @@ ALTER TABLE `user`
 -- Constraints for table `produk`
 --
 ALTER TABLE `produk`
-  ADD CONSTRAINT `produk_ibfk_1` FOREIGN KEY (`kategori_id`) REFERENCES `kategori` (`id_kategori`) ON DELETE SET NULL;
+  ADD CONSTRAINT `produk_ibfk_1` FOREIGN KEY (`id_kategori`) REFERENCES `kategori` (`id_kategori`) ON DELETE SET NULL,
+  ADD CONSTRAINT `produk_ibfk_2` FOREIGN KEY (`id_gudang`) REFERENCES `gudang` (`id_gudang`) ON DELETE SET NULL,
+  ADD CONSTRAINT `produk_ibfk_3` FOREIGN KEY (`id_user`) REFERENCES `user` (`id_user`) ON DELETE SET NULL;
 
 --
 -- Constraints for table `stokgudang`
 --
 ALTER TABLE `stokgudang`
-  ADD CONSTRAINT `stokgudang_ibfk_1` FOREIGN KEY (`gudang_id`) REFERENCES `gudang` (`id_gudang`) ON DELETE CASCADE,
-  ADD CONSTRAINT `stokgudang_ibfk_2` FOREIGN KEY (`produk_id`) REFERENCES `produk` (`id_produk`) ON DELETE CASCADE;
+  ADD CONSTRAINT `stokgudang_ibfk_1` FOREIGN KEY (`id_gudang`) REFERENCES `gudang` (`id_gudang`) ON DELETE CASCADE,
+  ADD CONSTRAINT `stokgudang_ibfk_2` FOREIGN KEY (`id_produk`) REFERENCES `produk` (`id_produk`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `stoktransaksi`
 --
 ALTER TABLE `stoktransaksi`
-  ADD CONSTRAINT `stoktransaksi_ibfk_1` FOREIGN KEY (`produk_id`) REFERENCES `produk` (`id_produk`) ON DELETE CASCADE;
+  ADD CONSTRAINT `stoktransaksi_ibfk_1` FOREIGN KEY (`id_produk`) REFERENCES `produk` (`id_produk`) ON DELETE CASCADE;
+
+-- Tambahan struktur untuk tracking barang
+ALTER TABLE produk
+  ADD COLUMN status ENUM('tersedia','dipinjam','sedang digunakan','dipindahkan','dalam perbaikan','rusak','tidak aktif') NOT NULL DEFAULT 'tersedia',
+  ADD COLUMN kondisi ENUM('baik','rusak','diperbaiki','usang','lainnya') NOT NULL DEFAULT 'baik',
+  ADD COLUMN id_gudang INT NULL,
+  ADD COLUMN lokasi_custom VARCHAR(255) NULL,
+  ADD COLUMN id_user INT NULL,
+  ADD COLUMN tersedia TINYINT(1) NOT NULL DEFAULT 1,
+  ADD COLUMN last_tracked_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+
+CREATE TABLE IF NOT EXISTS tracking_barang (
+  id_tracking INT NOT NULL AUTO_INCREMENT,
+  id_produk INT NOT NULL,
+  kode_barang VARCHAR(100) DEFAULT NULL,
+  status_sebelum ENUM('tersedia','dipinjam','sedang digunakan','dipindahkan','dalam perbaikan','rusak','tidak aktif') DEFAULT NULL,
+  status_sesudah ENUM('tersedia','dipinjam','sedang digunakan','dipindahkan','dalam perbaikan','rusak','tidak aktif') DEFAULT NULL,
+  kondisi_sebelum ENUM('baik','rusak','diperbaiki','usang','lainnya') DEFAULT NULL,
+  kondisi_sesudah ENUM('baik','rusak','diperbaiki','usang','lainnya') DEFAULT NULL,
+  lokasi_sebelum VARCHAR(255) DEFAULT NULL,
+  lokasi_sesudah VARCHAR(255) DEFAULT NULL,
+  id_user_sebelum INT DEFAULT NULL,
+  id_user_sesudah INT DEFAULT NULL,
+  id_user_terkait INT DEFAULT NULL,
+  activity_type ENUM('tambah','pindah','pinjam','kembali','perbaikan','rusak','update','keluarmasuk','arsip') NOT NULL,
+  note TEXT DEFAULT NULL,
+  changed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  id_user_changed INT DEFAULT NULL,
+  PRIMARY KEY (id_tracking),
+  INDEX idx_id_produk (id_produk),
+  INDEX idx_id_user_sebelum (id_user_sebelum),
+  INDEX idx_id_user_sesudah (id_user_sesudah),
+  INDEX idx_id_user_terkait (id_user_terkait),
+  INDEX idx_id_user_changed (id_user_changed),
+  CONSTRAINT tracking_produk_fk FOREIGN KEY (id_produk) REFERENCES produk(id_produk) ON DELETE CASCADE,
+  CONSTRAINT tracking_user_sebelum_fk FOREIGN KEY (id_user_sebelum) REFERENCES user(id_user) ON DELETE SET NULL,
+  CONSTRAINT tracking_user_sesudah_fk FOREIGN KEY (id_user_sesudah) REFERENCES user(id_user) ON DELETE SET NULL,
+  CONSTRAINT tracking_user_terkait_fk FOREIGN KEY (id_user_terkait) REFERENCES user(id_user) ON DELETE SET NULL,
+  CONSTRAINT tracking_user_changed_fk FOREIGN KEY (id_user_changed) REFERENCES user(id_user) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS peminjaman (
+  id_peminjaman INT NOT NULL AUTO_INCREMENT,
+  id_produk INT NOT NULL,
+  id_user INT NOT NULL,
+  jumlah INT NOT NULL,
+  id_gudang INT DEFAULT NULL,
+  tanggal_pinjam DATE NOT NULL,
+  tanggal_kembali_rencana DATE DEFAULT NULL,
+  tanggal_kembali_aktual DATE DEFAULT NULL,
+  status ENUM('dipinjam','kembali','terlambat','dibatalkan') NOT NULL DEFAULT 'dipinjam',
+  catatan TEXT DEFAULT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  id_user_created INT DEFAULT NULL,
+  PRIMARY KEY (id_peminjaman),
+  INDEX idx_peminjaman_produk (id_produk),
+  INDEX idx_peminjaman_user (id_user),
+  INDEX idx_peminjaman_gudang (id_gudang),
+  INDEX idx_peminjaman_user_created (id_user_created),
+  CONSTRAINT peminjaman_produk_fk FOREIGN KEY (id_produk) REFERENCES produk(id_produk) ON DELETE CASCADE,
+  CONSTRAINT peminjaman_user_fk FOREIGN KEY (id_user) REFERENCES user(id_user) ON DELETE CASCADE,
+  CONSTRAINT peminjaman_gudang_fk FOREIGN KEY (id_gudang) REFERENCES gudang(id_gudang) ON DELETE SET NULL,
+  CONSTRAINT peminjaman_user_created_fk FOREIGN KEY (id_user_created) REFERENCES user(id_user) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
-/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_CHARACTER_SET_CONNECTION */;

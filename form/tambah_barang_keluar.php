@@ -1,4 +1,12 @@
 <?php
+if (!isset($koneksi) || !($koneksi instanceof mysqli)) {
+    include __DIR__ . '/../koneksi/koneksi.php';
+}
+require_auth_roles(['admin', 'petugas'], [
+    'login_redirect' => 'login.php',
+    'forbidden_redirect' => 'index.php?page=barang_keluar',
+]);
+
 // Query untuk mengambil data produk yang stoknya lebih dari 0
 $queryProduk = "SELECT * FROM produk WHERE jumlah_stok > 0";
 $resultProduk = $koneksi->query($queryProduk);
@@ -18,11 +26,13 @@ $resultProduk = $koneksi->query($queryProduk);
             <select class="form-select" id="kode_produk" name="kode_produk" required onchange="updateNamaProduk()">
                 <option value="">--Pilih Kode Produk--</option>
                 <?php while ($produk = $resultProduk->fetch_assoc()): ?>
+                    <?php if ($produk['tipe_barang'] !== 'consumable') continue; ?>
                     <option value="<?php echo $produk['id_produk']; ?>" data-nama-produk="<?php echo $produk['nama_produk']; ?>" data-stok="<?php echo $produk['jumlah_stok']; ?>">
                         <?php echo $produk['kode_produk'] . " - " . $produk['nama_produk'] . " (Stok: " . $produk['jumlah_stok'] . ")"; ?>
                     </option>
                 <?php endwhile; ?>
             </select>
+            <small class="text-muted d-block">Hanya produk consumable ditampilkan di sini.</small>
         </div>
         <div class="mb-3">
             <label for="nama_produk" class="form-label">Nama Produk</label>

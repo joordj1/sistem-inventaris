@@ -1,6 +1,14 @@
 <?php
-// Query untuk mengambil data produk
-$queryProduk = "SELECT * FROM produk";
+if (!isset($koneksi) || !($koneksi instanceof mysqli)) {
+    include __DIR__ . '/../koneksi/koneksi.php';
+}
+require_auth_roles(['admin', 'petugas'], [
+    'login_redirect' => 'login.php',
+    'forbidden_redirect' => 'index.php?page=barang_masuk',
+]);
+
+// Query untuk mengambil data produk beserta harga master default
+$queryProduk = "SELECT *, COALESCE(NULLIF(harga_default, 0), harga_satuan, 0) AS harga_master FROM produk";
 $resultProduk = $koneksi->query($queryProduk);
 ?>
 
@@ -18,15 +26,22 @@ $resultProduk = $koneksi->query($queryProduk);
             <select class="form-select" id="kode_produk" name="kode_produk" required onchange="updateNamaProduk()">
                 <option value="">--Pilih Kode Produk--</option>
                 <?php while ($produk = $resultProduk->fetch_assoc()): ?>
-                    <option value="<?php echo $produk['id_produk']; ?>" data-nama-produk="<?php echo $produk['nama_produk']; ?>">
+                    <?php if ($produk['tipe_barang'] !== 'consumable') continue; ?>
+                    <option value="<?php echo $produk['id_produk']; ?>" data-nama-produk="<?php echo $produk['nama_produk']; ?>" data-harga="<?php echo (int) round((float) ($produk['harga_master'] ?? 0)); ?>">
                         <?php echo $produk['kode_produk'] . " - " . $produk['nama_produk']; ?>
                     </option>
                 <?php endwhile; ?>
             </select>
+            <small class="text-muted d-block">Hanya produk consumable ditampilkan di sini.</small>
         </div>
         <div class="mb-3">
             <label for="nama_produk" class="form-label">Nama Produk</label>
             <input type="text" class="form-control" id="nama_produk" name="nama_produk" placeholder="Nama Produk" readonly>
+        </div>
+        <div class="mb-3">
+            <label for="harga_satuan" class="form-label">Harga Satuan Transaksi</label>
+            <input type="text" class="form-control" id="harga_satuan" name="harga_satuan" placeholder="Harga transaksi barang masuk" required inputmode="numeric" oninput="formatHargaInput(this)">
+            <small class="text-muted d-block">Harga disimpan ke tabel transaksi, tidak mengubah harga master produk.</small>
         </div>
         <div class="mb-3">
             <label for="jumlah" class="form-label">Jumlah</label>
@@ -52,6 +67,12 @@ $resultProduk = $koneksi->query($queryProduk);
 function updateNamaProduk() {
     const selectedOption = document.querySelector('#kode_produk option:checked');
     document.getElementById('nama_produk').value = selectedOption.dataset.namaProduk || '';
+    document.getElementById('harga_satuan').value = selectedOption.dataset.harga || '';
+}
+
+function formatHargaInput(input) {
+    const digits = input.value.replace(/[^0-9]/g, '');
+    input.value = digits;
 }
 
 document.querySelector("form").addEventListener("submit", function (e) {

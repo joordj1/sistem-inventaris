@@ -5,29 +5,41 @@ include 'koneksi/koneksi.php';
 $loginMessage = '';
 
 if (isset($_POST['login'])) {
-    $username = $_POST['username'];
-    $password = $_POST['password'];
+    $username = trim((string) ($_POST['username'] ?? ''));
+    $password = (string) ($_POST['password'] ?? '');
 
     // Enkripsi password menggunakan MD5
     $passwordHash = md5($password);
 
-    // Query untuk mengecek username dan password
-    $query = "SELECT * FROM user WHERE username = '$username' AND password = '$passwordHash'";
-    $result = mysqli_query($koneksi, $query);
+    $stmt = $koneksi->prepare("SELECT * FROM user WHERE username = ? AND password = ? LIMIT 1");
+    if ($stmt) {
+        $stmt->bind_param('ss', $username, $passwordHash);
+        $stmt->execute();
+        $result = $stmt->get_result();
+    } else {
+        $result = false;
+    }
 
-    if (mysqli_num_rows($result) > 0) {
-        // Pengguna ditemukan
+    if ($result && mysqli_num_rows($result) > 0) {
         $user = mysqli_fetch_assoc($result);
 
-        // Simpan data user dalam session
-        $_SESSION['user_id'] = $user['id_user'];
-        $_SESSION['username'] = $user['username'];
-        $_SESSION['role'] = $user['role'];
+        $role = normalize_user_role($user['role'] ?? null);
 
-        // Set pesan untuk login sukses
+        $_SESSION['id_user'] = $user['id_user'];
+        $_SESSION['username'] = $user['username'];
+        $_SESSION['role'] = $role;
+
+        if ($user['role'] !== $role) {
+            $updateRoleStmt = $koneksi->prepare("UPDATE user SET role = ? WHERE id_user = ?");
+            if ($updateRoleStmt) {
+                $userId = intval($user['id_user']);
+                $updateRoleStmt->bind_param('si', $role, $userId);
+                $updateRoleStmt->execute();
+            }
+        }
+
         $loginMessage = "success|Selamat datang, {$user['username']}!";
     } else {
-        // Jika login gagal
         $loginMessage = "error|Username atau Password salah!";
     }
 }
@@ -51,7 +63,7 @@ if (isset($_POST['login'])) {
             <i class="bi bi-box-seam logo-size"></i>
         </div>
         <h2>Sistem Informasi Inventaris</h2>
-        <p>Login sebagai admin atau leader!</p>
+        <p>Login sebagai admin, petugas, atau viewer.</p>
 
         <div class="input-group">
             <i class="bi bi-person-fill"></i>

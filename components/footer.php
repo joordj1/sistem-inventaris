@@ -5,7 +5,7 @@
                 <div class="col-md-4 mb-4">
                     <h5 class="text-uppercase">Tentang Kami</h5>
                     <p class="small text-muted">
-                        Sistem Informasi Manajemen Inventaris Barang membantu bisnis dalam pengelolaan stok yang lebih efektif dan efisien, menciptakan solusi inventaris modern untuk mendukung kemajuan perusahaan Anda.
+                        <!-- Sistem Informasi Manajemen Inventaris Barang membantu bisnis dalam pengelolaan stok yang lebih efektif dan efisien, menciptakan solusi inventaris modern untuk mendukung kemajuan perusahaan Anda. -->
                     </p>
                 </div>
 

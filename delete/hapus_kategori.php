@@ -1,11 +1,16 @@
 <?php
 include '../koneksi/koneksi.php';
+require_auth_roles(['admin', 'petugas'], [
+    'response' => 'json',
+    'login_redirect' => '../login.php',
+    'forbidden_redirect' => '../index.php?page=kategori_barang',
+]);
 
 if (isset($_GET['id_kategori'])) {
     $id_kategori = intval($_GET['id_kategori']);
 
     // Cek apakah ada produk terkait dengan kategori ini
-    $checkProductQuery = "SELECT COUNT(*) AS product_count FROM produk WHERE kategori_id = $id_kategori";
+    $checkProductQuery = "SELECT COUNT(*) AS product_count FROM produk WHERE id_kategori = $id_kategori";
     $result = $koneksi->query($checkProductQuery);
     $row = $result->fetch_assoc();
 

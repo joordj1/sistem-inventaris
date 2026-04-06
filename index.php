@@ -1,20 +1,29 @@
 <?php
 session_start();
+include 'koneksi/koneksi.php';
 
-// Cek apakah user sudah login
-if (!isset($_SESSION['user_id'])) {
-    // Jika belum login, arahkan ke login.php
-    header("Location: login.php");
-    exit;
-}
+require_auth_roles(['admin', 'petugas', 'viewer'], [
+    'login_redirect' => 'login.php',
+    'forbidden_redirect' => 'login.php',
+]);
 
-// Cek apakah user memiliki role admin atau leader
-if ($_SESSION['role'] == 'admin') {
-    // Jika role adalah leader, jangan tampilkan menu 'user'
-    $userMenuVisible = false;
-} else {
-    $userMenuVisible = true;
-}
+$currentUserRole = get_current_user_role();
+$userMenuVisible = current_user_has_role('admin');
+$inventoryManageVisible = current_user_has_role(['admin', 'petugas']);
+
+$pageRoleMap = [
+    'user' => ['admin'],
+    'tambah_user' => ['admin'],
+    'edit_user' => ['admin'],
+    'tambah_produk' => ['admin', 'petugas'],
+    'edit_produk' => ['admin', 'petugas'],
+    'tambah_kategori' => ['admin', 'petugas'],
+    'edit_kategori' => ['admin', 'petugas'],
+    'tambah_gudang' => ['admin', 'petugas'],
+    'edit_gudang' => ['admin', 'petugas'],
+    'tambah_barang_masuk' => ['admin', 'petugas'],
+    'tambah_barang_keluar' => ['admin', 'petugas'],
+];
 ?>
 
 <!DOCTYPE html>
@@ -35,41 +44,32 @@ if ($_SESSION['role'] == 'admin') {
     <link rel="stylesheet" href="assets/css/style.css">
 </head>
 
-<body class="d-flex flex-column min-vh-100">
-<?php include 'koneksi/koneksi.php'; ?>
-<?php include 'components/header.php'; ?>
+<body class="app-shell">
+<?php include 'components/sidebar.php'; ?>
 
-<!-- Main Content -->
-<div class="container my-5 p-3">
+<div class="app-content">
+    <div class="page-header">
+        <h1 class="page-title">Inventaris Dashboard</h1>
+    </div>
+
+    <main class="main-page p-4">
     <?php
         if (isset($_GET['page'])) {
             $page = $_GET['page'];
+            $pageAccessDenied = isset($pageRoleMap[$page]) && !current_user_has_role($pageRoleMap[$page]);
+            if ($pageAccessDenied) {
+                echo "<center><h3>Anda tidak memiliki akses ke halaman ini.</h3></center>";
+            } else {
             switch ($page) {
-                // Menu untuk halaman leader
                 case 'user':
-                    if ($userMenuVisible) {
-                        include "pages/user.php";
-                    } else {
-                        echo "<center><h3>Anda tidak memiliki akses ke halaman ini.</h3></center>";
-                    }
+                    include "pages/user.php";
                     break;
                 case "tambah_user":
-                    if ($userMenuVisible) {
-                        include "form/tambah_user.php";
-                    } else {
-                        echo "<center><h3>Anda tidak memiliki akses ke halaman ini.</h3></center>";
-                    }
+                    include "form/tambah_user.php";
                     break;
                 case "edit_user":
-                    if ($userMenuVisible) {
-                        include "form/edit_user.php";
-                    } else {
-                        echo "<center><h3>Anda tidak memiliki akses ke halaman ini.</h3></center>";
-                    }
+                    include "form/edit_user.php";
                     break;
-
-
-                // Halaman lainnya tetap bisa diakses admin
                 case 'dashboard':
                     include "pages/dashboard.php";
                     break;
@@ -104,6 +104,12 @@ if ($_SESSION['role'] == 'admin') {
                     break;
                 case 'produk_info':
                     include "views/produk_info.php";
+                    break;
+                case 'unit_barang_info':
+                    include "views/unit_barang_info.php";
+                    break;
+                case 'print_unit_qr':
+                    include "views/print_unit_qr.php";
                     break;
                     
                 // menuju ke form
@@ -147,10 +153,14 @@ if ($_SESSION['role'] == 'admin') {
                     echo "<center><h3>Maaf. Halaman tidak di temukan !</h3></center>";
                     break;
             }
+            }
         } else {
             include "pages/dashboard.php";
         }
     ?>
+</div>
+
+    </main>
 </div>
 
 <?php include 'components/footer.php'; ?>
@@ -161,6 +171,9 @@ if ($_SESSION['role'] == 'admin') {
 
 <!-- Tambahkan SweetAlert2 dari CDN -->
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <!-- js -->
 <script src="assets/js/delete.js"></script>
