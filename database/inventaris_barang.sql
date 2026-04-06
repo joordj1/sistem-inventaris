@@ -79,10 +79,11 @@ CREATE TABLE `produk` (
   `status` ENUM('tersedia','dipinjam','sedang digunakan','dipindahkan','dalam perbaikan','rusak','tidak aktif') NOT NULL DEFAULT 'tersedia',
   `kondisi` ENUM('baik','rusak','diperbaiki','usang','lainnya') NOT NULL DEFAULT 'baik',
   `lokasi_custom` varchar(255) DEFAULT NULL,
+  `harga_default` decimal(15,2) NOT NULL DEFAULT '0.00',
   `harga_satuan` decimal(15,2) NOT NULL,
   `jumlah_stok` int NOT NULL DEFAULT '0',
   `satuan` varchar(50) NOT NULL,
-  `total_nilai` decimal(15,2) GENERATED ALWAYS AS ((`jumlah_stok` * `harga_satuan`)) STORED,
+  `total_nilai` decimal(15,2) GENERATED ALWAYS AS ((`jumlah_stok` * `harga_default`)) STORED,
   `tersedia` TINYINT(1) NOT NULL DEFAULT 1,
   `last_tracked_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `gambar_produk` varchar(255) DEFAULT NULL
@@ -92,11 +93,11 @@ CREATE TABLE `produk` (
 -- Dumping data for table `produk`
 --
 
-INSERT INTO `produk` (`id_produk`, `kode_produk`, `nama_produk`, `id_kategori`, `harga_satuan`, `jumlah_stok`, `satuan`, `gambar_produk`) VALUES
-(50, 'P-001', 'Kain Katun Premium', 18, '100000.00', 50, 'M', 'kain katun.jpeg'),
-(51, 'P-002', 'Kain Katun Polyester Campuran', 19, '90000.00', 50, 'M', 'KAIN-POLYESTER.png'),
-(52, 'P-003', 'Kemeja Pria', 20, '150000.00', 50, 'Pcs', 'kemeja pria.jpeg'),
-(53, 'P-004', 'Kaos Unisex', 21, '80000.00', 30, 'Pcs', 'kaos.jpeg');
+INSERT INTO `produk` (`id_produk`, `kode_produk`, `nama_produk`, `id_kategori`, `harga_default`, `harga_satuan`, `jumlah_stok`, `satuan`, `gambar_produk`) VALUES
+(50, 'P-001', 'Kain Katun Premium', 18, '100000.00', '100000.00', 50, 'M', 'kain katun.jpeg'),
+(51, 'P-002', 'Kain Katun Polyester Campuran', 19, '90000.00', '90000.00', 50, 'M', 'KAIN-POLYESTER.png'),
+(52, 'P-003', 'Kemeja Pria', 20, '150000.00', '150000.00', 50, 'Pcs', 'kemeja pria.jpeg'),
+(53, 'P-004', 'Kaos Unisex', 21, '80000.00', '80000.00', 30, 'Pcs', 'kaos.jpeg');
 
 -- --------------------------------------------------------
 
@@ -133,6 +134,7 @@ CREATE TABLE `stoktransaksi` (
   `no_invoice` varchar(100) DEFAULT NULL,
   `tipe_transaksi` enum('masuk','keluar') NOT NULL,
   `jumlah` int NOT NULL,
+  `harga_satuan` decimal(15,2) DEFAULT NULL,
   `tanggal` date NOT NULL,
   `keterangan` varchar(255) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -141,13 +143,13 @@ CREATE TABLE `stoktransaksi` (
 -- Dumping data for table `stoktransaksi`
 --
 
-INSERT INTO `stoktransaksi` (`id_transaksi`, `id_produk`, `no_invoice`, `tipe_transaksi`, `jumlah`, `tanggal`, `keterangan`) VALUES
-(21, 50, 'INV-001', 'masuk', 100, '2024-11-12', 'Pembelian dari PT. Indonusa\r\n'),
-(22, 51, 'INV-002', 'masuk', 80, '2024-11-12', 'Pembelian dari PT. Indahbutik'),
-(23, 50, 'INV-003', 'keluar', 50, '2024-11-13', 'Produk keluar gudang untuk di buatkan kemeja 50Pcs'),
-(24, 52, 'INV-005', 'masuk', 50, '2024-11-14', 'Barang Masuk Dari Pabrik'),
-(25, 51, 'INV-006', 'keluar', 30, '2024-11-12', 'Barang Keluar Untuk Dibuatkan kaos sebanyak 50 Pcs'),
-(26, 53, 'INV-007', 'masuk', 30, '2024-11-13', 'Barang masuk Dari Gudang');
+INSERT INTO `stoktransaksi` (`id_transaksi`, `id_produk`, `no_invoice`, `tipe_transaksi`, `jumlah`, `harga_satuan`, `tanggal`, `keterangan`) VALUES
+(21, 50, 'INV-001', 'masuk', 100, '100000.00', '2024-11-12', 'Pembelian dari PT. Indonusa\r\n'),
+(22, 51, 'INV-002', 'masuk', 80, '90000.00', '2024-11-12', 'Pembelian dari PT. Indahbutik'),
+(23, 50, 'INV-003', 'keluar', 50, '100000.00', '2024-11-13', 'Produk keluar gudang untuk di buatkan kemeja 50Pcs'),
+(24, 52, 'INV-005', 'masuk', 50, '150000.00', '2024-11-14', 'Barang Masuk Dari Pabrik'),
+(25, 51, 'INV-006', 'keluar', 30, '90000.00', '2024-11-12', 'Barang Keluar Untuk Dibuatkan kaos sebanyak 50 Pcs'),
+(26, 53, 'INV-007', 'masuk', 30, '80000.00', '2024-11-13', 'Barang masuk Dari Gudang');
 
 -- --------------------------------------------------------
 
