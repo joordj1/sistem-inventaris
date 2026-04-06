@@ -1,4 +1,12 @@
 <?php
+if (!isset($koneksi) || !($koneksi instanceof mysqli)) {
+    include __DIR__ . '/../koneksi/koneksi.php';
+}
+require_auth_roles(['admin', 'petugas'], [
+    'login_redirect' => 'login.php',
+    'forbidden_redirect' => 'index.php?page=barang_keluar',
+]);
+
 // Query untuk mengambil data produk yang stoknya lebih dari 0
 $queryProduk = "SELECT * FROM produk WHERE jumlah_stok > 0";
 $resultProduk = $koneksi->query($queryProduk);
