@@ -159,10 +159,13 @@ $assetLocationMap = getAssetLocationMap($koneksi);
             </tr>
         </thead>
         <tbody>
-        <?php 
-            // Membuat query dasar untuk mendapatkan data produk dengan informasi gudang
-            $query = "SELECT produk.id_produk, produk.kode_produk, produk.nama_produk, produk.tipe_barang, kategori.nama_kategori, 
-                             produk.harga_satuan, produk.jumlah_stok, produk.satuan, produk.total_nilai, 
+<?php 
+    $canManageInventory = inventory_user_can_manage();
+    // Membuat query dasar untuk mendapatkan data produk dengan informasi gudang
+    $query = "SELECT produk.id_produk, produk.kode_produk, produk.nama_produk, produk.tipe_barang, kategori.nama_kategori, 
+                             COALESCE(NULLIF(produk.harga_default, 0), produk.harga_satuan, 0) AS harga_default_view,
+                             produk.jumlah_stok, produk.satuan,
+                             (COALESCE(NULLIF(produk.harga_default, 0), produk.harga_satuan, 0) * produk.jumlah_stok) AS total_nilai_view, 
                              produk.gambar_produk, produk.status, produk.kondisi, produk.lokasi_custom AS produk_lokasi_custom, produk.tersedia, 
                              gudang_stok.nama_gudang AS nama_gudang_stok,
                              gudang_master.nama_gudang AS nama_gudang_master
@@ -229,12 +232,14 @@ $assetLocationMap = getAssetLocationMap($koneksi);
                             <span class="summary-chip"><?= ($row['tersedia'] ? 'Tersedia' : 'Tidak tersedia') ?></span>
                         <?php endif; ?>
                     </td>
-                    <td class="text-end"><?= formatRupiah($row['harga_satuan']) ?></td>
-                    <td class="text-end"><?= formatRupiah($row['total_nilai']) ?></td>
+                    <td class="text-end"><?= formatRupiah($row['harga_default_view']) ?></td>
+                    <td class="text-end"><?= formatRupiah($row['total_nilai_view']) ?></td>
                     <td class="text-center">
                         <a href="index.php?page=produk_info&id_produk=<?= $row['id_produk'] ?>" class="action-icon" title="Lihat"><i class="bi-eye fs-4"></i></a>
+                        <?php if ($canManageInventory): ?>
                         <a href="index.php?page=edit_produk&id_produk=<?= $row['id_produk'] ?>" class="action-icon" title="Edit"><i class="bi-pencil fs-4"></i></a>
                         <a href="javascript:void(0);" onclick="confirmDeleteProduk(<?= $row['id_produk'] ?>)" class="action-icon text-danger" title="Hapus"><i class="bi-trash fs-4"></i></a>
+                        <?php endif; ?>
                     </td>
                 </tr>
             <?php endwhile; ?>
@@ -248,6 +253,8 @@ $assetLocationMap = getAssetLocationMap($koneksi);
     </table>
 </div>
 
+<?php if ($canManageInventory): ?>
 <a href="index.php?page=tambah_produk"><button class="btn btn-primary float-start mt-3">+ Tambah Produk Baru</button></a>
+<?php endif; ?>
 <a href="index.php?page=dashboard"><button class="btn btn-secondary float-end mt-3">Tutup</button></a>
 <div class="clearfix"></div>
