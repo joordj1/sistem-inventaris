@@ -1,6 +1,10 @@
 <?php
-session_start();
 include '../koneksi/koneksi.php';
+require_auth_roles(['admin', 'petugas'], [
+    'response' => 'json',
+    'login_redirect' => '../login.php',
+    'forbidden_redirect' => '../index.php?page=data_produk',
+]);
 header('Content-Type: application/json');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -65,6 +69,24 @@ try {
         'id_user_terkait' => $unit['id_user'],
         'note' => $note,
         'id_user_changed' => $operator
+    ]);
+
+    log_activity($koneksi, [
+        'id_user' => $operator,
+        'role_user' => get_current_user_role(),
+        'action_name' => 'unit_update_kondisi',
+        'entity_type' => 'unit',
+        'entity_id' => $id_unit,
+        'entity_label' => $unit['kode_unit'] ?? $unit['serial_number'] ?? ('Unit #' . $id_unit),
+        'description' => 'Memperbarui kondisi unit asset',
+        'id_produk' => $unit['id_produk'],
+        'id_unit_barang' => $id_unit,
+        'id_gudang' => $unit['id_gudang'] ?? null,
+        'metadata_json' => [
+            'kondisi_sebelum' => $unit['kondisi'],
+            'kondisi_sesudah' => strtolower($new_condition),
+            'note' => $note,
+        ],
     ]);
 
     $koneksi->commit();
