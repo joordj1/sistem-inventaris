@@ -9,8 +9,9 @@ function formatRupiah($angka)
 
 // Query untuk mengambil data produk berdasarkan kategori
 $query = "SELECT k.nama_kategori AS kategori, p.kode_produk, p.nama_produk,
-                 g.nama_gudang, p.jumlah_stok AS stok, p.harga_satuan,
-                 (p.jumlah_stok * p.harga_satuan) AS nilai_total
+                 g.nama_gudang, p.jumlah_stok AS stok,
+                 COALESCE(NULLIF(p.harga_default, 0), p.harga_satuan, 0) AS harga_default,
+                 (p.jumlah_stok * COALESCE(NULLIF(p.harga_default, 0), p.harga_satuan, 0)) AS nilai_total
           FROM Produk p
           JOIN Kategori k ON p.id_kategori = k.id_kategori
           JOIN StokGudang s ON p.id_produk = s.id_produk
@@ -74,11 +75,11 @@ while ($produk = $result->fetch_assoc()) {
                         echo "<td>{$produk['nama_produk']}</td>";
                         echo "<td>{$produk['nama_gudang']}</td>";
                         echo "<td class='text-end'>{$produk['stok']}</td>";
-                        echo "<td class='text-end'>" . formatRupiah($produk['harga_satuan']) . "</td>";
+                        echo "<td class='text-end'>" . formatRupiah($produk['harga_default']) . "</td>";
                         echo "<td class='text-end'>" . formatRupiah($produk['nilai_total']) . "</td>";
                         echo "</tr>";
                         $totalStok += $produk['stok'];
-                        $totalHargaSatuan += $produk['harga_satuan'];
+                        $totalHargaSatuan += $produk['harga_default'];
                         $totalNilai += $produk['nilai_total'];
                         $nomor++;
                     }
