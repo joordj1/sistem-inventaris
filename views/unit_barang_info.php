@@ -1,4 +1,5 @@
 <?php
+    $canManageInventory = inventory_user_can_manage();
 function valueOrDash($value) {
     return isset($value) && trim((string) $value) !== '' ? $value : '-';
 }
@@ -268,7 +269,9 @@ $userRows = fetchAllRows($koneksi->query("SELECT id_user, nama FROM user ORDER B
                             <div><strong>Status aktif:</strong> <?= htmlspecialchars($currentStatusLabel) ?></div>
                             <div><strong>Aksi valid:</strong> <?= htmlspecialchars(!empty($availableActions) ? implode(', ', $availableActions) : 'Tidak ada aksi cepat yang tersedia') ?></div>
                         </div>
-
+                        <?php if (!$canManageInventory): ?>
+                        <div class="alert alert-light border">Role `viewer` tidak dapat mengubah unit asset.</div>
+                        <?php else: ?>
                         <?php if ($canMove): ?>
                         <form class="unit-action-form" data-url="actions/update_unit_location.php" data-confirm="Pindahkan unit ini ke lokasi baru?">
                             <input type="hidden" name="id_unit_barang" value="<?= $unit['id_unit_barang'] ?>">
@@ -334,6 +337,7 @@ $userRows = fetchAllRows($koneksi->query("SELECT id_user, nama FROM user ORDER B
                             <input type="hidden" name="status" value="rusak">
                             <button type="submit" class="btn btn-sm btn-danger">Mark Rusak</button>
                         </form>
+                        <?php endif; ?>
                         <?php endif; ?>
                     </div>
                 </div>
