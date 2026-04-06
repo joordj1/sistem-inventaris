@@ -23,6 +23,8 @@ function formatRupiah($angka) {
                 <th>Kode Produk</th>
                 <th>Nama Produk</th>
                 <th>Jumlah</th>
+                <th>Harga Satuan</th>
+                <th>Total</th>
                 <th>Tanggal</th>
                 <th>Keterangan</th>
             </tr>
@@ -31,7 +33,10 @@ function formatRupiah($angka) {
         <?php 
             // Query untuk mendapatkan data barang masuk
             $query = "SELECT stoktransaksi.id_transaksi, produk.kode_produk, produk.nama_produk, stoktransaksi.no_invoice, 
-                             stoktransaksi.jumlah, stoktransaksi.tanggal, stoktransaksi.keterangan
+                             stoktransaksi.jumlah,
+                             COALESCE(stoktransaksi.harga_satuan, produk.harga_default, produk.harga_satuan, 0) AS harga_satuan_transaksi,
+                             (stoktransaksi.jumlah * COALESCE(stoktransaksi.harga_satuan, produk.harga_default, produk.harga_satuan, 0)) AS total_transaksi,
+                             stoktransaksi.tanggal, stoktransaksi.keterangan
                       FROM stoktransaksi
                       INNER JOIN produk ON stoktransaksi.id_produk = produk.id_produk
                       WHERE stoktransaksi.tipe_transaksi = 'masuk'";
@@ -54,6 +59,8 @@ function formatRupiah($angka) {
                     <td><?= $row['kode_produk'] ?></td>
                     <td><?= $row['nama_produk'] ?></td>
                     <td class="text-end"><?= $row['jumlah'] ?></td>
+                    <td class="text-end"><?= formatRupiah($row['harga_satuan_transaksi']) ?></td>
+                    <td class="text-end"><?= formatRupiah($row['total_transaksi']) ?></td>
                     <td><?= $row['tanggal'] ?></td>
                     <td><?= $row['keterangan'] ?></td>
                     
@@ -61,7 +68,7 @@ function formatRupiah($angka) {
             <?php endwhile; ?>
         <?php else: ?>
             <tr>
-                <td colspan="7" class="text-center">Tidak ada data barang masuk yang ditemukan.</td>
+                <td colspan="9" class="text-center">Tidak ada data barang masuk yang ditemukan.</td>
             </tr>
         <?php endif; ?>
         </tbody>
