@@ -1,4 +1,12 @@
 <?php
+if (!isset($koneksi) || !($koneksi instanceof mysqli)) {
+    include __DIR__ . '/../koneksi/koneksi.php';
+}
+require_auth_roles(['admin', 'petugas'], [
+    'login_redirect' => 'login.php',
+    'forbidden_redirect' => 'index.php?page=data_produk',
+]);
+
 // Query untuk mengambil data kategori
 $queryKategori = "SELECT * FROM kategori";
 $resultKategori = $koneksi->query($queryKategori);
@@ -20,6 +28,10 @@ $resultGudang = $koneksi->query($queryGudang);
         <div class="mb-3">
             <label for="namaproduk" class="form-label">Nama Produk</label>
             <input type="text" class="form-control" id="namaproduk" name="namaproduk" placeholder="Inputkan Nama Produk" required>
+        </div>
+        <div class="mb-3">
+            <label for="deskripsi" class="form-label">Deskripsi Barang</label>
+            <textarea class="form-control" id="deskripsi" name="deskripsi" rows="3" placeholder="Spesifikasi, ukuran, material, atau catatan identifikasi barang"></textarea>
         </div>
         <div class="mb-3">
             <label for="kategori" class="form-label">Kategori Produk</label>
