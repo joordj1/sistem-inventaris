@@ -1,6 +1,11 @@
 <?php
-session_start();
 include '../koneksi/koneksi.php';
+require_auth_roles(['admin', 'petugas'], [
+    'response' => 'json',
+    'login_redirect' => '../login.php',
+    'forbidden_redirect' => '../index.php?page=data_produk',
+]);
+header('Content-Type: application/json');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -19,6 +24,7 @@ $kondisi = isset($_POST['kondisi']) ? trim($_POST['kondisi']) : 'baik';
 $id_user = isset($_POST['id_user']) && $_POST['id_user'] !== '' ? intval($_POST['id_user']) : null;
 $operator = isset($_SESSION['id_user']) ? intval($_SESSION['id_user']) : null;
 $note = isset($_POST['note']) ? trim($_POST['note']) : 'Penambahan unit barang asset';
+$lokasiSesudah = $lokasi_custom ?: get_gudang_name_by_id($koneksi, $id_gudang);
 
 $produk = get_produk_by_id($koneksi, $id_produk);
 if (!$produk) {
@@ -61,7 +67,8 @@ if ($updateQrStmt) {
     $updateQrStmt->execute();
 }
 
-log_riwayat_unit_barang($koneksi, [    'id_unit_barang' => $id_unit,
+log_riwayat_unit_barang($koneksi, [
+    'id_unit_barang' => $id_unit,
     'id_produk' => $id_produk,
     'activity_type' => 'tambah',
     'status_sebelum' => null,
@@ -69,12 +76,33 @@ log_riwayat_unit_barang($koneksi, [    'id_unit_barang' => $id_unit,
     'kondisi_sebelum' => null,
     'kondisi_sesudah' => $kondisi,
     'lokasi_sebelum' => null,
-    'lokasi_sesudah' => $lokasi_custom ?: ($id_gudang ? get_produk_by_id($koneksi,$id_produk)['id_gudang'] : null),
+    'lokasi_sesudah' => $lokasiSesudah,
     'id_user_sebelum' => null,
     'id_user_sesudah' => $id_user,
     'id_user_terkait' => $id_user,
     'note' => $note,
     'id_user_changed' => $operator,
+]);
+
+log_activity($koneksi, [
+    'id_user' => $operator,
+    'role_user' => get_current_user_role(),
+    'action_name' => 'unit_tambah',
+    'entity_type' => 'unit',
+    'entity_id' => $id_unit,
+    'entity_label' => $serial_number ?: ('Unit #' . $id_unit),
+    'description' => 'Menambahkan unit asset baru',
+    'id_produk' => $id_produk,
+    'id_unit_barang' => $id_unit,
+    'id_gudang' => $id_gudang,
+    'metadata_json' => [
+        'serial_number' => $serial_number,
+        'status' => $status,
+        'kondisi' => $kondisi,
+        'lokasi' => $lokasiSesudah,
+        'id_user' => $id_user,
+        'note' => $note,
+    ],
 ]);
 
 echo json_encode(['success' => true, 'id_unit_barang' => $id_unit]);
