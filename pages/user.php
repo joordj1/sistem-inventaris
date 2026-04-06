@@ -1,5 +1,10 @@
 
-
+<?php
+require_auth_roles(['admin'], [
+    'login_redirect' => 'login.php',
+    'forbidden_redirect' => 'index.php?page=dashboard',
+]);
+?>
 <div class="container mb-5">
     <h2 class="text-center mb-4">Data User</h2>
 
@@ -33,7 +38,7 @@
                     <td><?= htmlspecialchars($row['username']) ?></td>
                     <td class="text-center">****</td> <!-- Password disembunyikan -->
                     <td><?= htmlspecialchars($row['email']) ?></td>
-                    <td class="text-center"><?= htmlspecialchars($row['role'] === 'leader' ? 'user' : $row['role']) ?></td>
+                    <td class="text-center"><?= htmlspecialchars(normalize_user_role($row['role'])) ?></td>
                     <td><?= htmlspecialchars($row['created_at']) ?></td>
                     <td class="text-center">
                         <a href="index.php?page=edit_user&id_user=<?= $row['id_user'] ?>"><i class="bi-pencil fs-4 mx-3"></i></a>
