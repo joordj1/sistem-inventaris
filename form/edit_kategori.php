@@ -1,9 +1,16 @@
 <?php
+if (!isset($koneksi) || !($koneksi instanceof mysqli)) {
+    include __DIR__ . '/../koneksi/koneksi.php';
+}
+require_auth_roles(['admin', 'petugas'], [
+    'login_redirect' => 'login.php',
+    'forbidden_redirect' => 'index.php?page=kategori_barang',
+]);
 
 
 // Cek apakah ada ID kategori yang dikirim melalui URL
 if (isset($_GET['id_kategori'])) {
-    $id_kategori = $_GET['id_kategori'];
+    $id_kategori = intval($_GET['id_kategori']);
 
     // Query untuk mengambil data kategori berdasarkan ID
     $query = "SELECT * FROM kategori WHERE id_kategori = ?";
