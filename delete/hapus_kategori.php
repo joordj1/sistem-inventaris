@@ -1,5 +1,10 @@
 <?php
 include '../koneksi/koneksi.php';
+require_auth_roles(['admin', 'petugas'], [
+    'response' => 'json',
+    'login_redirect' => '../login.php',
+    'forbidden_redirect' => '../index.php?page=kategori_barang',
+]);
 
 if (isset($_GET['id_kategori'])) {
     $id_kategori = intval($_GET['id_kategori']);
