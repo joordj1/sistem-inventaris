@@ -1,4 +1,5 @@
 <?php
+    $canManageInventory = inventory_user_can_manage();
 // Fungsi untuk menghitung total stok dari semua produk yang ada di gudang tertentu
 function getTotalStokGudang($koneksi, $id_gudang) {
     $sql = "SELECT SUM(p.jumlah_stok) AS total_stok
@@ -58,9 +59,10 @@ $search = isset($_GET['search']) ? $koneksi->real_escape_string($_GET['search'])
                     <td class="text-end"><?= getTotalStokGudang($koneksi, $row['id_gudang']) ?></td>
                     <td class="text-center">
                         <a href="index.php?page=gudang_info&id_gudang=<?= $row['id_gudang'] ?>"><i class="bi-eye fs-4"></i></a>
+                        <?php if ($canManageInventory): ?>
                         <a href="index.php?page=edit_gudang&id_gudang=<?= $row['id_gudang'] ?>"><i class="bi-pencil fs-4 mx-3"></i></a>
                         <a href="javascript:void(0);" onclick="confirmDeleteGudang(<?= $row['id_gudang'] ?>)"><i class="bi-trash fs-4"></i></a>
-
+                        <?php endif; ?>
                     </td>
                 </tr>
             <?php endwhile; ?>
@@ -73,6 +75,8 @@ $search = isset($_GET['search']) ? $koneksi->real_escape_string($_GET['search'])
     </table>
 </div>
 
+<?php if ($canManageInventory): ?>
 <a href="index.php?page=tambah_gudang"><button class="btn btn-primary float-start mt-3">+ Tambah Gudang Baru</button></a>
+<?php endif; ?>
 <a href="index.php?page=dashboard"><button class="btn btn-secondary float-end mt-3">Tutup</button></a>
 <div class="clearfix"></div>
