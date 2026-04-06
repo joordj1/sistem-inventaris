@@ -2,6 +2,13 @@
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
+if (!isset($koneksi) || !($koneksi instanceof mysqli)) {
+    include __DIR__ . '/../koneksi/koneksi.php';
+}
+require_auth_roles(['admin', 'petugas'], [
+    'login_redirect' => 'login.php',
+    'forbidden_redirect' => 'index.php?page=data_produk',
+]);
 
 function normalize_edit_value($value) {
     return strtolower(trim((string) ($value ?? '')));
@@ -94,6 +101,7 @@ if ($id_produk) {
     $query = "SELECT * FROM produk WHERE id_produk = '$id_produk'";
     $result = $koneksi->query($query);
     $data = $result->fetch_assoc();
+    $current_harga_master = (int) round((float) (($data['harga_default'] ?? 0) > 0 ? $data['harga_default'] : ($data['harga_satuan'] ?? 0)));
 
     // Prioritaskan gudang master produk; StokGudang hanya fallback untuk data lama.
     $query_gudang = "SELECT id_gudang FROM StokGudang WHERE id_produk = '$id_produk'";
@@ -114,6 +122,7 @@ if ($id_produk) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $kode_produk = trim((string) ($_POST['kode_produk'] ?? ''));
     $nama_produk = trim((string) ($_POST['nama_produk'] ?? ''));
+    $deskripsi = normalize_edit_optional_text($_POST['deskripsi'] ?? null);
     $id_kategori = filter_var($_POST['id_kategori'] ?? null, FILTER_VALIDATE_INT, [
         'options' => ['min_range' => 1]
     ]);
@@ -123,7 +132,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $satuan = trim((string) ($_POST['satuan'] ?? ''));
     $harga_satuan = preg_replace('/[^0-9]/', '', (string) ($_POST['harga_satuan'] ?? ''));
     if ($harga_satuan === '') {
-        $harga_satuan = 0;
+        $harga_satuan = $current_harga_master;
     }
     $harga_satuan = (int)$harga_satuan;
     if ($harga_satuan < 1) {
@@ -211,6 +220,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'lokasi_custom' => $lokasi_custom,
         'id_user' => $id_user,
     ];
+    $deskripsi_sql = $deskripsi !== null ? "'" . $koneksi->real_escape_string($deskripsi) . "'" : "NULL";
 
     // Logika upload file dan update data produk
     if ($_FILES['gambar_produk']['name']) {
@@ -223,7 +233,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $koneksi->begin_transaction();
 
                 // Update data produk tanpa menyentuh serial unit.
-                $query_update = "UPDATE produk SET kode_produk = '$kode_produk', nama_produk = '$nama_produk', id_kategori = '$id_kategori', jumlah_stok = '$jumlah_stok', satuan = '$satuan', harga_satuan = '$harga_satuan', total_nilai = '$total_nilai', gambar_produk = '$gambar_produk', status = '$status', kondisi = '$kondisi', tersedia = 1, tipe_barang = '$tipe_barang'";
+                $query_update = "UPDATE produk SET kode_produk = '$kode_produk', nama_produk = '$nama_produk', deskripsi = $deskripsi_sql, id_kategori = '$id_kategori', jumlah_stok = '$jumlah_stok', satuan = '$satuan', harga_default = '$harga_satuan', harga_satuan = '$harga_satuan', total_nilai = '$total_nilai', gambar_produk = '$gambar_produk', status = '$status', kondisi = '$kondisi', tersedia = 1, tipe_barang = '$tipe_barang'";
                 if ($tipe_barang === 'asset') {
                     $query_update .= ", id_gudang = " . ($id_gudang !== null ? $id_gudang : "NULL");
                     if ($lokasi_custom !== null) {
@@ -274,6 +284,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 insert_tracking_for_edit($koneksi, $id_produk, $kode_produk, $produk_before, $after_data, 'update', 'Edit data produk lewat form', $operator);
+                log_activity($koneksi, [
+                    'id_user' => $operator,
+                    'role_user' => get_current_user_role(),
+                    'action_name' => 'produk_edit',
+                    'entity_type' => 'produk',
+                    'entity_id' => $id_produk,
+                    'entity_label' => $kode_produk . ' - ' . $nama_produk,
+                    'description' => 'Memperbarui data barang',
+                    'id_produk' => $id_produk,
+                    'id_gudang' => $id_gudang,
+                    'metadata_json' => [
+                        'nama_produk' => $nama_produk,
+                        'deskripsi' => $deskripsi,
+                        'tipe_barang' => $tipe_barang,
+                        'jumlah_stok' => $jumlah_stok,
+                    ],
+                ]);
 
                 $koneksi->commit();
                 header("Location: index.php?page=data_produk");
@@ -291,7 +318,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $koneksi->begin_transaction();
 
             // Update data produk tanpa gambar (unit asset tidak disinkronkan dengan kode produk baru)
-            $query_update = "UPDATE produk SET kode_produk = '$kode_produk', nama_produk = '$nama_produk', id_kategori = '$id_kategori', jumlah_stok = '$jumlah_stok', satuan = '$satuan', harga_satuan = '$harga_satuan', total_nilai = '$total_nilai', status = '$status', kondisi = '$kondisi', tersedia = 1, tipe_barang = '$tipe_barang'";
+            $query_update = "UPDATE produk SET kode_produk = '$kode_produk', nama_produk = '$nama_produk', deskripsi = $deskripsi_sql, id_kategori = '$id_kategori', jumlah_stok = '$jumlah_stok', satuan = '$satuan', harga_default = '$harga_satuan', harga_satuan = '$harga_satuan', total_nilai = '$total_nilai', status = '$status', kondisi = '$kondisi', tersedia = 1, tipe_barang = '$tipe_barang'";
             if ($tipe_barang === 'asset') {
                 $query_update .= ", id_gudang = " . ($id_gudang !== null ? $id_gudang : "NULL");
                 if ($lokasi_custom !== null) {
@@ -342,6 +369,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             insert_tracking_for_edit($koneksi, $id_produk, $kode_produk, $produk_before, $after_data, 'update', 'Edit data produk lewat form', $operator);
+            log_activity($koneksi, [
+                'id_user' => $operator,
+                'role_user' => get_current_user_role(),
+                'action_name' => 'produk_edit',
+                'entity_type' => 'produk',
+                'entity_id' => $id_produk,
+                'entity_label' => $kode_produk . ' - ' . $nama_produk,
+                'description' => 'Memperbarui data barang',
+                'id_produk' => $id_produk,
+                'id_gudang' => $id_gudang,
+                'metadata_json' => [
+                    'nama_produk' => $nama_produk,
+                    'deskripsi' => $deskripsi,
+                    'tipe_barang' => $tipe_barang,
+                    'jumlah_stok' => $jumlah_stok,
+                ],
+            ]);
 
             $koneksi->commit();
             header("Location: index.php?page=data_produk");
@@ -367,6 +411,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="mb-3">
             <label for="nama_produk" class="form-label">Nama Produk</label>
             <input type="text" class="form-control" id="nama_produk" name="nama_produk" value="<?= $data['nama_produk']; ?>">
+        </div>
+        <div class="mb-3">
+            <label for="deskripsi" class="form-label">Deskripsi Barang</label>
+            <textarea class="form-control" id="deskripsi" name="deskripsi" rows="3"><?= htmlspecialchars($data['deskripsi'] ?? '') ?></textarea>
         </div>
         <div class="mb-3">
             <label for="id_kategori" class="form-label">Kategori Produk</label>
@@ -448,9 +496,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <input type="text" class="form-control" id="satuan" name="satuan" value="<?= $data['satuan']; ?>">
         </div>
         <div class="mb-3">
-            <label for="harga_satuan" class="form-label">Harga Satuan</label>
-            <input type="text" class="form-control" id="harga_satuan" name="harga_satuan" value="<?= $data['harga_satuan']; ?>" inputmode="numeric" oninput="formatHargaInput(this)">
-            <small class="form-text text-muted">Masukkan harga dalam angka (contoh 11000000 untuk 11 juta). Sistem akan dibatasi 1 - 1000000000.</small>
+            <label for="harga_satuan" class="form-label">Harga Default</label>
+            <input type="text" class="form-control" id="harga_satuan" name="harga_satuan" value="<?= $current_harga_master; ?>" inputmode="numeric" oninput="formatHargaInput(this)">
+            <small class="form-text text-muted">Harga master hanya bisa diubah dari halaman edit produk. Jika field dikosongkan, sistem mempertahankan harga sebelumnya.</small>
         </div>
         <div class="mb-3">
             <label for="gambar_produk" class="form-label">Upload Gambar Produk</label><br>
