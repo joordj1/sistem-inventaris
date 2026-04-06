@@ -1,3 +1,12 @@
+<?php
+if (!isset($koneksi) || !($koneksi instanceof mysqli)) {
+    include __DIR__ . '/../koneksi/koneksi.php';
+}
+require_auth_roles(['admin', 'petugas'], [
+    'login_redirect' => 'login.php',
+    'forbidden_redirect' => 'index.php?page=data_gudang',
+]);
+?>
 <div class="form-container">
     <div class="form-header">
         <h5>Form Tambah Data Gudang</h5>
