@@ -1,3 +1,9 @@
+<?php
+require_auth_roles(['admin'], [
+    'login_redirect' => 'login.php',
+    'forbidden_redirect' => 'index.php?page=dashboard',
+]);
+?>
 <div class="form-container">
     <div class="form-header">
         <h5>Form Tambah Data User</h5>
@@ -24,7 +30,8 @@
             <select class="form-select" id="role" name="role" required>
                 <option value="">--Pilih Role--</option>
                 <option value="admin">Admin</option>
-                <option value="user">User</option>
+                <option value="petugas">Petugas</option>
+                <option value="viewer">Viewer</option>
             </select>
         </div>
         <div class="d-flex justify-content-between">
