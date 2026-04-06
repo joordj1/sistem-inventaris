@@ -9,8 +9,12 @@
 <body>
 
 <?php
-// Hubungkan ke database
 include '../koneksi/koneksi.php'; // Pastikan file koneksi ke database ada
+require_auth_roles(['admin', 'petugas'], [
+    'response' => 'page',
+    'login_redirect' => '../login.php',
+    'forbidden_redirect' => '../index.php?page=kategori_barang',
+]);
 
 // Cek apakah data dari form sudah dikirim
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
