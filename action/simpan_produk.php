@@ -11,6 +11,11 @@
 <?php
 session_start();
 include '../koneksi/koneksi.php';
+require_auth_roles(['admin', 'petugas'], [
+    'response' => 'page',
+    'login_redirect' => '../login.php',
+    'forbidden_redirect' => '../index.php?page=data_produk',
+]);
 
 function showProdukAlert($icon, $title, $text, $redirect = '../index.php?page=data_produk') {
     $redirectJs = $redirect !== null
@@ -32,6 +37,7 @@ function showProdukAlert($icon, $title, $text, $redirect = '../index.php?page=da
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $kodeProduk = trim((string) ($_POST['code'] ?? ''));
     $namaProduk = trim((string) ($_POST['namaproduk'] ?? ''));
+    $deskripsi = trim((string) ($_POST['deskripsi'] ?? ''));
     $satuan = trim((string) ($_POST['satuan'] ?? ''));
     $tipeBarangInput = trim((string) ($_POST['tipe_barang'] ?? 'consumable'));
     $tipeBarang = in_array($tipeBarangInput, ['consumable', 'asset'], true) ? $tipeBarangInput : null;
@@ -49,7 +55,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $hargaInput = trim((string) ($_POST['harga'] ?? ''));
     $hargaSatuan = preg_replace('/[^0-9]/', '', $hargaInput);
     if ($hargaSatuan === '') {
-        $hargaSatuan = 0;
+        showProdukAlert('warning', 'Validasi Gagal', 'Harga produk wajib diisi.', '../index.php?page=tambah_produk');
+        exit();
     }
     $hargaSatuan = (int) $hargaSatuan;
     if ($hargaSatuan < 1) {
@@ -105,6 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Cek apakah kode produk sudah ada di database
     $kodeProdukEsc = $koneksi->real_escape_string($kodeProduk);
     $namaProdukEsc = $koneksi->real_escape_string($namaProduk);
+    $deskripsiSql = $deskripsi !== '' ? "'" . $koneksi->real_escape_string($deskripsi) . "'" : "NULL";
     $satuanEsc = $koneksi->real_escape_string($satuan);
     $cekKodeQuery = "SELECT id_produk FROM produk WHERE kode_produk = '$kodeProdukEsc'";
     $cekKodeResult = $koneksi->query($cekKodeQuery);
@@ -147,8 +155,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $koneksi->begin_transaction();
     try {
         // Query untuk menyimpan data produk
-        $queryProduk = "INSERT INTO produk (kode_produk, nama_produk, id_kategori, id_gudang, jumlah_stok, satuan, harga_satuan, gambar_produk, status, kondisi, tersedia, last_tracked_at, tipe_barang)
-                        VALUES ('$kodeProdukEsc', '$namaProdukEsc', " . intval($kategoriId) . ", " . intval($gudangId) . ", " . intval($stok) . ", '$satuanEsc', " . intval($hargaSatuan) . ", $gambarProdukSql, '$statusDefault', '$kondisiDefault', $tersediaDefault, NOW(), '$tipeBarang')";
+        $queryProduk = "INSERT INTO produk (kode_produk, nama_produk, deskripsi, id_kategori, id_gudang, jumlah_stok, satuan, harga_default, harga_satuan, gambar_produk, status, kondisi, tersedia, last_tracked_at, tipe_barang)
+                        VALUES ('$kodeProdukEsc', '$namaProdukEsc', $deskripsiSql, " . intval($kategoriId) . ", " . intval($gudangId) . ", " . intval($stok) . ", '$satuanEsc', " . intval($hargaSatuan) . ", " . intval($hargaSatuan) . ", $gambarProdukSql, '$statusDefault', '$kondisiDefault', $tersediaDefault, NOW(), '$tipeBarang')";
 
         if ($koneksi->query($queryProduk) !== TRUE) {
             throw new Exception($koneksi->error);
@@ -208,6 +216,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'activity_type' => 'tambah',
             'note' => 'Produk ditambahkan dari form',
             'id_user_changed' => $userId
+        ]);
+
+        log_activity($koneksi, [
+            'id_user' => $userId,
+            'role_user' => get_current_user_role(),
+            'action_name' => 'produk_tambah',
+            'entity_type' => 'produk',
+            'entity_id' => $lastProdukId,
+            'entity_label' => $kodeProduk . ' - ' . $namaProduk,
+            'description' => 'Menambahkan data barang baru',
+            'id_produk' => $lastProdukId,
+            'id_gudang' => $gudangId,
+            'metadata_json' => [
+                'kode_produk' => $kodeProduk,
+                'nama_produk' => $namaProduk,
+                'tipe_barang' => $tipeBarang,
+                'jumlah_stok' => $stok,
+                'deskripsi' => $deskripsi,
+            ],
         ]);
 
         $koneksi->commit();
