@@ -19,6 +19,116 @@ if ($activeDbResult) {
     // echo "DEBUG: Database aktif adalah " . $activeDbName . "\n";
 }
 
+function normalize_user_role($role) {
+    $role = strtolower(trim((string) ($role ?? '')));
+    $map = [
+        'admin' => 'admin',
+        'petugas' => 'petugas',
+        'leader' => 'petugas',
+        'user' => 'petugas',
+        'operator' => 'petugas',
+        'viewer' => 'viewer',
+    ];
+
+    return $map[$role] ?? 'viewer';
+}
+
+function get_current_user_role() {
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
+
+    if (!isset($_SESSION['role'])) {
+        return null;
+    }
+
+    $_SESSION['role'] = normalize_user_role($_SESSION['role']);
+    return $_SESSION['role'];
+}
+
+function current_user_has_role($roles) {
+    $currentRole = get_current_user_role();
+    if ($currentRole === null) {
+        return false;
+    }
+
+    $roles = is_array($roles) ? $roles : [$roles];
+    $roles = array_map('normalize_user_role', $roles);
+
+    return in_array($currentRole, $roles, true);
+}
+
+function inventory_user_can_manage() {
+    return current_user_has_role(['admin', 'petugas']);
+}
+
+function inventory_user_is_admin() {
+    return current_user_has_role('admin');
+}
+
+function require_auth_roles($roles, $options = []) {
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
+
+    $responseType = $options['response'] ?? 'page';
+    $loginRedirect = $options['login_redirect'] ?? 'login.php';
+    $forbiddenRedirect = $options['forbidden_redirect'] ?? 'index.php';
+    $message = $options['message'] ?? 'Anda tidak memiliki akses untuk melakukan aksi ini.';
+
+    if (empty($_SESSION['id_user'])) {
+        if ($responseType === 'json') {
+            http_response_code(401);
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'error' => 'Silakan login terlebih dahulu.']);
+            exit;
+        }
+
+        header('Location: ' . $loginRedirect);
+        exit;
+    }
+
+    if (!current_user_has_role($roles)) {
+        if ($responseType === 'json') {
+            http_response_code(403);
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'error' => $message]);
+            exit;
+        }
+
+        header('Location: ' . $forbiddenRedirect);
+        exit;
+    }
+
+    return get_current_user_role();
+}
+
+function schema_table_exists_now($koneksi, $tableName) {
+    $safeTableName = $koneksi->real_escape_string($tableName);
+    $result = $koneksi->query("SHOW TABLES LIKE '$safeTableName'");
+    return (bool) ($result && $result->num_rows > 0);
+}
+
+function schema_has_column_now($koneksi, $tableName, $columnName) {
+    if (!schema_table_exists_now($koneksi, $tableName)) {
+        return false;
+    }
+
+    $safeTableName = $koneksi->real_escape_string($tableName);
+    $safeColumnName = $koneksi->real_escape_string($columnName);
+    $result = $koneksi->query("SHOW COLUMNS FROM `$safeTableName` LIKE '$safeColumnName'");
+    return (bool) ($result && $result->num_rows > 0);
+}
+
+function nullable_int_id($value) {
+    if ($value === null || $value === '') {
+        return null;
+    }
+
+    $value = intval($value);
+    return $value > 0 ? $value : null;
+}
+
 function log_tracking_history($koneksi, $data) {
     $availableCols = [];
     $result = $koneksi->query("SHOW COLUMNS FROM tracking_barang");
@@ -60,11 +170,11 @@ function log_tracking_history($koneksi, $data) {
 
     foreach (['id_user_sebelum','id_user_sesudah','id_user_terkait','id_user_changed','id_user'] as $field) {
         if (isset($colSet[$field])) {
-            $columns[] = $field;
             if ($field === 'id_user' && isset($colSet['id_user_terkait'])) {
                 // Prioritize explicit related user when available
                 continue;
             }
+            $columns[] = $field;
             $values[] = $data[$field] ?? ($field === 'id_user' ? ($data['id_user_terkait'] ?? $data['id_user_sesudah'] ?? $data['id_user_sebelum'] ?? null) : null);
             $types .= 'i';
         }
@@ -842,6 +952,333 @@ function sync_asset_units_for_product($koneksi, $productData, $options = []) {
         'removed' => $removed,
         'gudang_synced' => intval($syncGudangResult['updated'] ?? 0),
     ];
+}
+
+function ensure_role_schema_compatibility($koneksi) {
+    static $done = false;
+
+    if ($done) {
+        return;
+    }
+    $done = true;
+
+    if (!schema_table_exists_now($koneksi, 'user') || !schema_has_column_now($koneksi, 'user', 'role')) {
+        return;
+    }
+
+    $koneksi->query("ALTER TABLE user MODIFY COLUMN role ENUM('admin','petugas','viewer','leader','user') NOT NULL DEFAULT 'viewer'");
+    $koneksi->query("UPDATE user SET role = 'petugas' WHERE role IN ('leader', 'user')");
+    $koneksi->query("ALTER TABLE user MODIFY COLUMN role ENUM('admin','petugas','viewer') NOT NULL DEFAULT 'viewer'");
+}
+
+function ensure_priority_one_schema($koneksi) {
+    static $done = false;
+
+    if ($done) {
+        return;
+    }
+    $done = true;
+
+    ensure_role_schema_compatibility($koneksi);
+
+    if (schema_table_exists_now($koneksi, 'produk') && !schema_has_column_now($koneksi, 'produk', 'deskripsi')) {
+        $koneksi->query("ALTER TABLE produk ADD COLUMN deskripsi TEXT NULL AFTER nama_produk");
+    }
+
+    if (schema_table_exists_now($koneksi, 'produk') && !schema_has_column_now($koneksi, 'produk', 'harga_default')) {
+        $koneksi->query("ALTER TABLE produk ADD COLUMN harga_default DECIMAL(15,2) NOT NULL DEFAULT 0.00 AFTER satuan");
+    }
+
+    if (
+        schema_table_exists_now($koneksi, 'produk')
+        && schema_has_column_now($koneksi, 'produk', 'harga_default')
+        && schema_has_column_now($koneksi, 'produk', 'harga_satuan')
+    ) {
+        $koneksi->query("UPDATE produk SET harga_default = harga_satuan WHERE harga_default <= 0 AND harga_satuan > 0");
+    }
+
+    if (schema_table_exists_now($koneksi, 'stoktransaksi') && !schema_has_column_now($koneksi, 'stoktransaksi', 'harga_satuan')) {
+        $koneksi->query("ALTER TABLE stoktransaksi ADD COLUMN harga_satuan DECIMAL(15,2) NULL DEFAULT NULL AFTER jumlah");
+    }
+
+    if (
+        schema_table_exists_now($koneksi, 'stoktransaksi')
+        && schema_has_column_now($koneksi, 'stoktransaksi', 'harga_satuan')
+        && schema_table_exists_now($koneksi, 'produk')
+        && schema_has_column_now($koneksi, 'produk', 'harga_default')
+        && schema_has_column_now($koneksi, 'produk', 'harga_satuan')
+    ) {
+        $koneksi->query(
+            "UPDATE stoktransaksi st
+             INNER JOIN produk p ON p.id_produk = st.id_produk
+             SET st.harga_satuan = COALESCE(NULLIF(p.harga_default, 0), p.harga_satuan, 0)
+             WHERE st.harga_satuan IS NULL"
+        );
+    }
+
+    if (!schema_table_exists_now($koneksi, 'catatan_inventaris')) {
+        $koneksi->query(
+            "CREATE TABLE catatan_inventaris (
+                id_catatan INT NOT NULL AUTO_INCREMENT,
+                tipe_target ENUM('produk','transaksi','unit','gudang') NOT NULL DEFAULT 'produk',
+                kategori_catatan ENUM('umum','kerusakan','selisih','servis','transaksi','bug') NOT NULL DEFAULT 'umum',
+                judul VARCHAR(150) DEFAULT NULL,
+                catatan TEXT NOT NULL,
+                id_produk INT DEFAULT NULL,
+                id_transaksi INT DEFAULT NULL,
+                id_unit_barang INT DEFAULT NULL,
+                id_gudang INT DEFAULT NULL,
+                created_by INT DEFAULT NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (id_catatan),
+                INDEX idx_catatan_target (tipe_target, kategori_catatan),
+                INDEX idx_catatan_produk (id_produk),
+                INDEX idx_catatan_transaksi (id_transaksi),
+                INDEX idx_catatan_unit (id_unit_barang),
+                INDEX idx_catatan_gudang (id_gudang),
+                INDEX idx_catatan_created_by (created_by),
+                INDEX idx_catatan_created_at (created_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci"
+        );
+    }
+
+    if (!schema_table_exists_now($koneksi, 'activity_log')) {
+        $koneksi->query(
+            "CREATE TABLE activity_log (
+                id_log INT NOT NULL AUTO_INCREMENT,
+                id_user INT DEFAULT NULL,
+                role_user VARCHAR(50) DEFAULT NULL,
+                action_name VARCHAR(100) NOT NULL,
+                entity_type VARCHAR(50) NOT NULL,
+                entity_id INT DEFAULT NULL,
+                entity_label VARCHAR(255) DEFAULT NULL,
+                description TEXT DEFAULT NULL,
+                id_produk INT DEFAULT NULL,
+                id_transaksi INT DEFAULT NULL,
+                id_unit_barang INT DEFAULT NULL,
+                id_gudang INT DEFAULT NULL,
+                metadata_json LONGTEXT DEFAULT NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (id_log),
+                INDEX idx_activity_entity (entity_type, entity_id),
+                INDEX idx_activity_action (action_name),
+                INDEX idx_activity_user (id_user),
+                INDEX idx_activity_produk (id_produk),
+                INDEX idx_activity_transaksi (id_transaksi),
+                INDEX idx_activity_unit (id_unit_barang),
+                INDEX idx_activity_gudang (id_gudang),
+                INDEX idx_activity_created_at (created_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci"
+        );
+    }
+}
+
+function log_activity($koneksi, $data) {
+    if (!schema_table_exists_now($koneksi, 'activity_log')) {
+        return false;
+    }
+
+    $idUser = nullable_int_id($data['id_user'] ?? null);
+    $roleUser = isset($data['role_user']) ? normalize_user_role($data['role_user']) : get_current_user_role();
+    $actionName = trim((string) ($data['action_name'] ?? 'aktivitas'));
+    $entityType = trim((string) ($data['entity_type'] ?? 'sistem'));
+    $entityId = nullable_int_id($data['entity_id'] ?? null);
+    $entityLabel = trim((string) ($data['entity_label'] ?? ''));
+    $description = trim((string) ($data['description'] ?? ''));
+    $idProduk = nullable_int_id($data['id_produk'] ?? null);
+    $idTransaksi = nullable_int_id($data['id_transaksi'] ?? null);
+    $idUnit = nullable_int_id($data['id_unit_barang'] ?? null);
+    $idGudang = nullable_int_id($data['id_gudang'] ?? null);
+    $metadata = $data['metadata_json'] ?? null;
+
+    if (is_array($metadata)) {
+        $metadata = json_encode($metadata, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
+    $metadata = $metadata !== null ? (string) $metadata : null;
+
+    $stmt = $koneksi->prepare(
+        "INSERT INTO activity_log (
+            id_user, role_user, action_name, entity_type, entity_id, entity_label, description,
+            id_produk, id_transaksi, id_unit_barang, id_gudang, metadata_json, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())"
+    );
+
+    if (!$stmt) {
+        return false;
+    }
+
+    $stmt->bind_param(
+        'isssissiiiis',
+        $idUser,
+        $roleUser,
+        $actionName,
+        $entityType,
+        $entityId,
+        $entityLabel,
+        $description,
+        $idProduk,
+        $idTransaksi,
+        $idUnit,
+        $idGudang,
+        $metadata
+    );
+
+    return $stmt->execute();
+}
+
+function save_inventory_note($koneksi, $data) {
+    if (!schema_table_exists_now($koneksi, 'catatan_inventaris')) {
+        return false;
+    }
+
+    $tipeTarget = trim((string) ($data['tipe_target'] ?? 'produk'));
+    $kategoriCatatan = trim((string) ($data['kategori_catatan'] ?? 'umum'));
+    $judul = trim((string) ($data['judul'] ?? ''));
+    $catatan = trim((string) ($data['catatan'] ?? ''));
+
+    if ($catatan === '') {
+        return false;
+    }
+
+    $idProduk = nullable_int_id($data['id_produk'] ?? null);
+    $idTransaksi = nullable_int_id($data['id_transaksi'] ?? null);
+    $idUnit = nullable_int_id($data['id_unit_barang'] ?? null);
+    $idGudang = nullable_int_id($data['id_gudang'] ?? null);
+    $createdBy = nullable_int_id($data['created_by'] ?? null);
+    $judul = $judul !== '' ? $judul : null;
+
+    $stmt = $koneksi->prepare(
+        "INSERT INTO catatan_inventaris (
+            tipe_target, kategori_catatan, judul, catatan, id_produk, id_transaksi, id_unit_barang, id_gudang, created_by, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())"
+    );
+
+    if (!$stmt) {
+        return false;
+    }
+
+    $stmt->bind_param(
+        'ssssiiiii',
+        $tipeTarget,
+        $kategoriCatatan,
+        $judul,
+        $catatan,
+        $idProduk,
+        $idTransaksi,
+        $idUnit,
+        $idGudang,
+        $createdBy
+    );
+
+    return $stmt->execute();
+}
+
+function fetch_inventory_notes($koneksi, $filters = [], $limit = 50) {
+    if (!schema_table_exists_now($koneksi, 'catatan_inventaris')) {
+        return [];
+    }
+
+    $sql = "SELECT ci.*, u.nama AS nama_pembuat, st.no_invoice
+            FROM catatan_inventaris ci
+            LEFT JOIN user u ON ci.created_by = u.id_user
+            LEFT JOIN stoktransaksi st ON ci.id_transaksi = st.id_transaksi
+            WHERE 1 = 1";
+    $types = '';
+    $values = [];
+
+    foreach (['id_produk', 'id_transaksi', 'id_unit_barang', 'id_gudang'] as $field) {
+        if (isset($filters[$field]) && $filters[$field] !== null) {
+            $sql .= " AND ci.$field = ?";
+            $types .= 'i';
+            $values[] = intval($filters[$field]);
+        }
+    }
+
+    if (!empty($filters['tipe_target'])) {
+        $sql .= " AND ci.tipe_target = ?";
+        $types .= 's';
+        $values[] = trim((string) $filters['tipe_target']);
+    }
+
+    $limit = max(1, intval($limit));
+    $sql .= " ORDER BY ci.created_at DESC, ci.id_catatan DESC LIMIT ?";
+    $types .= 'i';
+    $values[] = $limit;
+
+    $stmt = $koneksi->prepare($sql);
+    if (!$stmt) {
+        return [];
+    }
+
+    $stmt->bind_param($types, ...$values);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $rows = [];
+    if ($result) {
+        while ($row = $result->fetch_assoc()) {
+            $rows[] = $row;
+        }
+    }
+
+    return $rows;
+}
+
+function fetch_activity_logs($koneksi, $filters = [], $limit = 100) {
+    if (!schema_table_exists_now($koneksi, 'activity_log')) {
+        return [];
+    }
+
+    $sql = "SELECT al.*, u.nama AS actor_name
+            FROM activity_log al
+            LEFT JOIN user u ON al.id_user = u.id_user
+            WHERE 1 = 1";
+    $types = '';
+    $values = [];
+
+    foreach (['id_produk', 'id_transaksi', 'id_unit_barang', 'id_gudang', 'entity_id'] as $field) {
+        if (isset($filters[$field]) && $filters[$field] !== null) {
+            $sql .= " AND al.$field = ?";
+            $types .= 'i';
+            $values[] = intval($filters[$field]);
+        }
+    }
+
+    foreach (['entity_type', 'action_name'] as $field) {
+        if (!empty($filters[$field])) {
+            $sql .= " AND al.$field = ?";
+            $types .= 's';
+            $values[] = trim((string) $filters[$field]);
+        }
+    }
+
+    $limit = max(1, intval($limit));
+    $sql .= " ORDER BY al.created_at DESC, al.id_log DESC LIMIT ?";
+    $types .= 'i';
+    $values[] = $limit;
+
+    $stmt = $koneksi->prepare($sql);
+    if (!$stmt) {
+        return [];
+    }
+
+    $stmt->bind_param($types, ...$values);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $rows = [];
+    if ($result) {
+        while ($row = $result->fetch_assoc()) {
+            $rows[] = $row;
+        }
+    }
+
+    return $rows;
+}
+
+ensure_priority_one_schema($koneksi);
+
+if (session_status() === PHP_SESSION_ACTIVE && isset($_SESSION['role'])) {
+    $_SESSION['role'] = normalize_user_role($_SESSION['role']);
 }
 
 ?>
