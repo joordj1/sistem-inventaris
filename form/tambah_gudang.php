@@ -11,7 +11,7 @@ require_auth_roles(['admin', 'petugas'], [
     <div class="form-header">
         <h5>Form Tambah Data Gudang</h5>
     </div>
-    <form action="actions/simpan_gudang.php" method="POST">
+    <form action="action/simpan_gudang.php" method="POST">
         <div class="mb-3">
             <label for="namaGudang" class="form-label">Nama Gudang</label>
             <input type="text" class="form-control" id="namaGudang" name="namaGudang" placeholder="Inputkan Nama Gudang" required>

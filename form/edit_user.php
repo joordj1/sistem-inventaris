@@ -7,11 +7,16 @@ require_auth_roles(['admin'], [
 // Ambil data user berdasarkan id_user
 $id_user = isset($_GET['id_user']) ? intval($_GET['id_user']) : 0;
 if ($id_user) {
-    $stmt = $koneksi->prepare("SELECT * FROM user WHERE id_user = ?");
+    $userSql = "SELECT * FROM user WHERE id_user = ?";
+    $stmt = $koneksi->prepare($userSql);
     $stmt->bind_param('i', $id_user);
     $stmt->execute();
     $result = $stmt->get_result();
     $data = $result->fetch_assoc();
+    if (!$data) {
+        echo "Data user tidak ditemukan!";
+        exit;
+    }
 } else {
     echo "ID User tidak ditemukan!";
     exit;
@@ -25,7 +30,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim((string) ($_POST['email'] ?? ''));
     $role = normalize_user_role($_POST['role'] ?? null);
 
-    $stmtCheck = $koneksi->prepare("SELECT id_user FROM user WHERE username = ? AND id_user != ?");
+    $duplicateSql = "SELECT id_user FROM user WHERE username = ? AND id_user != ?";
+    if (schema_has_column_now($koneksi, 'user', 'deleted_at')) {
+        $duplicateSql .= " AND deleted_at IS NULL";
+    }
+    $stmtCheck = $koneksi->prepare($duplicateSql);
     $stmtCheck->bind_param('si', $username, $id_user);
     $stmtCheck->execute();
     $result_check = $stmtCheck->get_result();
@@ -45,7 +54,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    $stmtUpdate = $koneksi->prepare("UPDATE user SET nama = ?, username = ?, password = ?, email = ?, role = ? WHERE id_user = ?");
+    $updateSql = "UPDATE user SET nama = ?, username = ?, password = ?, email = ?, role = ?";
+    if (schema_has_column_now($koneksi, 'user', 'updated_at')) {
+        $updateSql .= ", updated_at = NOW()";
+    }
+    $updateSql .= " WHERE id_user = ?";
+    $stmtUpdate = $koneksi->prepare($updateSql);
     $stmtUpdate->bind_param('sssssi', $nama, $username, $password, $email, $role, $id_user);
 
     if ($stmtUpdate->execute()) {
@@ -62,6 +76,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="form-header">
         <h5>Edit Data User</h5>
     </div>
+    <?php if (schema_has_column_now($koneksi, 'user', 'deleted_at')): ?>
+    <div class="mb-3">
+        <span class="badge <?= empty($data['deleted_at']) ? 'bg-success' : 'bg-danger' ?>">
+            <?= empty($data['deleted_at']) ? 'Aktif' : 'Nonaktif' ?>
+        </span>
+    </div>
+    <?php endif; ?>
     <form action="" method="post">
         <div class="mb-3">
             <label for="nama" class="form-label">Nama</label>

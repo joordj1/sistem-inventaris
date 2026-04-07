@@ -21,6 +21,12 @@
     </form>
 </div>
 
+<div class="alert alert-info">
+    Tabel ini hanya untuk transaksi barang masuk dan keluar. Perpindahan antar gudang dicatat terpisah pada
+    <a href="index.php?page=mutasi_barang" class="alert-link">modul mutasi barang</a>
+    agar tidak tercampur dengan barang keluar.
+</div>
+
 <div class="table-container overflowy">
     <table class="table table-bordered table-success table-striped table-hover">
         <thead class="text-center">

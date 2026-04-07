@@ -18,6 +18,7 @@ require_auth_roles(['admin'], [
                     <th>Password</th>
                     <th>Email</th>
                     <th>Role</th>
+                    <th>Status</th>
                     <th>Created At</th>
                     <th>Actions</th>
                 </tr>
@@ -25,12 +26,21 @@ require_auth_roles(['admin'], [
             <tbody>
             <?php 
                 // Query untuk mengambil data user
-                $query = "SELECT id_user, nama, username, email, role, created_at FROM user ORDER BY created_at DESC";
+                $query = "SELECT id_user, nama, username, email, role, created_at";
+                if (schema_has_column_now($koneksi, 'user', 'deleted_at')) {
+                    $query .= ", deleted_at";
+                }
+                $query .= " FROM user ORDER BY ";
+                if (schema_has_column_now($koneksi, 'user', 'deleted_at')) {
+                    $query .= "CASE WHEN deleted_at IS NULL THEN 0 ELSE 1 END, ";
+                }
+                $query .= "created_at DESC";
                 $result = $koneksi->query($query);
                 $nomor = 1;
 
                 if ($result->num_rows > 0):
                     while ($row = $result->fetch_assoc()):
+                        $isNonaktif = !empty($row['deleted_at']);
             ?>
                 <tr>
                     <td class="text-center"><?= $nomor++ ?></td>
@@ -39,13 +49,19 @@ require_auth_roles(['admin'], [
                     <td class="text-center">****</td> <!-- Password disembunyikan -->
                     <td><?= htmlspecialchars($row['email']) ?></td>
                     <td class="text-center"><?= htmlspecialchars(normalize_user_role($row['role'])) ?></td>
+                    <td class="text-center">
+                        <span class="badge <?= $isNonaktif ? 'bg-danger' : 'bg-success' ?>">
+                            <?= $isNonaktif ? 'Nonaktif' : 'Aktif' ?>
+                        </span>
+                    </td>
                     <td><?= htmlspecialchars($row['created_at']) ?></td>
                     <td class="text-center">
                         <a href="index.php?page=edit_user&id_user=<?= $row['id_user'] ?>"><i class="bi-pencil fs-4 mx-3"></i></a>
-                        <!-- Tombol hapus user -->
+                        <?php if (!$isNonaktif): ?>
                         <a href="javascript:void(0);" onclick="confirmDeleteUser(<?= $row['id_user'] ?>)"><i class="bi-trash fs-4"></i></a>
-
-
+                        <?php else: ?>
+                        <span class="badge bg-secondary">Sudah Nonaktif</span>
+                        <?php endif; ?>
                     </td>
                 </tr>
             <?php 
@@ -53,7 +69,7 @@ require_auth_roles(['admin'], [
                 else: 
             ?>
                 <tr>
-                    <td colspan="8" class="text-center">Tidak ada data user yang ditemukan.</td>
+                    <td colspan="9" class="text-center">Tidak ada data user yang ditemukan.</td>
                 </tr>
             <?php endif; ?>
             </tbody>
@@ -66,12 +82,3 @@ require_auth_roles(['admin'], [
     </div>
     <div class="clear-fix"></div>
 </div>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
-<script>
-    function confirmDeleteUser(id_user) {
-        if (confirm("Apakah Anda yakin ingin menghapus user ini?")) {
-            window.location.href = "index.php?page=hapus_user&id_user=" + id_user;
-        }
-    }
-</script>

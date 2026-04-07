@@ -87,6 +87,8 @@ if ($hasUnitTable) {
 
 $activityRows = fetch_activity_logs($koneksi, ['id_gudang' => $id_gudang], 100);
 $noteRows = fetch_inventory_notes($koneksi, ['id_gudang' => $id_gudang], 25);
+$mutasiMasukRows = fetch_mutasi_barang_rows($koneksi, ['gudang_tujuan_id' => $id_gudang], 25);
+$mutasiKeluarRows = fetch_mutasi_barang_rows($koneksi, ['gudang_asal_id' => $id_gudang], 25);
 
 $totalProduk = count($produkRows);
 $totalStokConsumable = 0;
@@ -256,7 +258,7 @@ foreach ($produkRows as $produkRow) {
                 <div class="card-header">Catatan Gudang</div>
                 <div class="card-body">
                     <?php if ($canManageInventory): ?>
-                    <form action="actions/simpan_catatan.php" method="post" class="border rounded p-3 mb-3 bg-light">
+                    <form action="action/simpan_catatan.php" method="post" class="border rounded p-3 mb-3 bg-light">
                         <input type="hidden" name="id_gudang" value="<?= $id_gudang ?>">
                         <input type="hidden" name="tipe_target" value="gudang">
                         <div class="mb-3">
@@ -340,6 +342,63 @@ foreach ($produkRows as $produkRow) {
                                 <?php endforeach; ?>
                             <?php else: ?>
                                 <tr><td colspan="5" class="text-center">Belum ada histori tracking untuk gudang ini.</td></tr>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>Mutasi Masuk Gudang</span>
+                    <a href="index.php?page=report_mutasi&gudang_tujuan_id=<?= intval($id_gudang) ?>" class="btn btn-sm btn-outline-primary">Report</a>
+                </div>
+                <div class="card-body table-container overflowy" style="max-height: 320px;">
+                    <table class="table table-sm table-bordered table-striped mb-0">
+                        <thead>
+                            <tr><th>Tanggal</th><th>Kode</th><th>Dari</th><th>Status</th></tr>
+                        </thead>
+                        <tbody>
+                            <?php if (!empty($mutasiMasukRows)): foreach ($mutasiMasukRows as $row): ?>
+                            <tr>
+                                <td><?= htmlspecialchars($row['tanggal_mutasi'] ?? '-') ?></td>
+                                <td><a href="index.php?page=mutasi_barang&view=detail&id=<?= intval($row['id']) ?>"><?= htmlspecialchars($row['kode_mutasi'] ?? '-') ?></a></td>
+                                <td><?= htmlspecialchars($row['nama_gudang_asal'] ?? '-') ?></td>
+                                <td><?= htmlspecialchars($row['status'] ?? '-') ?></td>
+                            </tr>
+                            <?php endforeach; else: ?>
+                            <tr><td colspan="4" class="text-center">Belum ada mutasi masuk.</td></tr>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>Mutasi Keluar Gudang</span>
+                    <a href="index.php?page=report_mutasi&gudang_asal_id=<?= intval($id_gudang) ?>" class="btn btn-sm btn-outline-primary">Report</a>
+                </div>
+                <div class="card-body table-container overflowy" style="max-height: 320px;">
+                    <table class="table table-sm table-bordered table-striped mb-0">
+                        <thead>
+                            <tr><th>Tanggal</th><th>Kode</th><th>Ke</th><th>Status</th></tr>
+                        </thead>
+                        <tbody>
+                            <?php if (!empty($mutasiKeluarRows)): foreach ($mutasiKeluarRows as $row): ?>
+                            <tr>
+                                <td><?= htmlspecialchars($row['tanggal_mutasi'] ?? '-') ?></td>
+                                <td><a href="index.php?page=mutasi_barang&view=detail&id=<?= intval($row['id']) ?>"><?= htmlspecialchars($row['kode_mutasi'] ?? '-') ?></a></td>
+                                <td><?= htmlspecialchars($row['nama_gudang_tujuan'] ?? '-') ?></td>
+                                <td><?= htmlspecialchars($row['status'] ?? '-') ?></td>
+                            </tr>
+                            <?php endforeach; else: ?>
+                            <tr><td colspan="4" class="text-center">Belum ada mutasi keluar.</td></tr>
                             <?php endif; ?>
                         </tbody>
                     </table>

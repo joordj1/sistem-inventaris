@@ -18,6 +18,11 @@ if (!is_numeric($jumlah) || intval($jumlah) <= 0) {
 }
 $jumlah = intval($jumlah);
 
+if (!empty($_POST['gudang_tujuan_id']) || !empty($_POST['tujuan_gudang_id'])) {
+    header("Location: ../index.php?page=tambah_barang_keluar&error=Perpindahan antar gudang tidak boleh dicatat sebagai barang keluar. Gunakan menu mutasi barang.");
+    exit();
+}
+
 // Validasi tipe item (hanya consumable boleh keluar stok)
 $produkTipe = $koneksi->query("SELECT tipe_barang FROM produk WHERE id_produk = $id_produk")->fetch_assoc();
 if (!$produkTipe || $produkTipe['tipe_barang'] !== 'consumable') {
@@ -111,6 +116,24 @@ log_activity($koneksi, [
         'harga_satuan' => $harga_satuan,
         'tanggal' => $tanggal,
         'keterangan' => $keterangan,
+    ],
+]);
+
+save_histori_log_entry($koneksi, [
+    'ref_type' => 'barang_keluar',
+    'ref_id' => $id_transaksi,
+    'event_type' => 'barang_keluar_dicatat',
+    'produk_id' => $id_produk,
+    'gudang_id' => $produk['id_gudang'] ?? null,
+    'user_id' => $operator,
+    'user_name_snapshot' => get_current_user_name($koneksi) ?? 'System',
+    'deskripsi' => 'Barang keluar tercatat dengan invoice ' . $no_invoice,
+    'meta_json' => [
+        'no_invoice' => $no_invoice,
+        'jumlah' => intval($jumlah),
+        'tanggal' => $tanggal,
+        'keterangan' => $keterangan,
+        'tipe_pemisahan' => 'barang_keluar_bukan_mutasi',
     ],
 ]);
 

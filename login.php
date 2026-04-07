@@ -11,7 +11,13 @@ if (isset($_POST['login'])) {
     // Enkripsi password menggunakan MD5
     $passwordHash = md5($password);
 
-    $stmt = $koneksi->prepare("SELECT * FROM user WHERE username = ? AND password = ? LIMIT 1");
+    $loginSql = "SELECT * FROM user WHERE username = ? AND password = ?";
+    if (schema_has_column_now($koneksi, 'user', 'deleted_at')) {
+        $loginSql .= " AND deleted_at IS NULL";
+    }
+    $loginSql .= " LIMIT 1";
+
+    $stmt = $koneksi->prepare($loginSql);
     if ($stmt) {
         $stmt->bind_param('ss', $username, $passwordHash);
         $stmt->execute();

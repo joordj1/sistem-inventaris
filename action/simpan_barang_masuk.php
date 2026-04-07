@@ -127,5 +127,22 @@ log_activity($koneksi, [
     ],
 ]);
 
+save_histori_log_entry($koneksi, [
+    'ref_type' => 'barang_masuk',
+    'ref_id' => $id_transaksi,
+    'event_type' => 'barang_masuk_dicatat',
+    'produk_id' => $id_produk,
+    'gudang_id' => $produkAfter['id_gudang'] ?? null,
+    'user_id' => $operator,
+    'user_name_snapshot' => get_current_user_name($koneksi) ?? 'System',
+    'deskripsi' => 'Barang masuk tercatat dengan invoice ' . $no_invoice,
+    'meta_json' => [
+        'no_invoice' => $no_invoice,
+        'jumlah' => intval($jumlah),
+        'tanggal' => $tanggal,
+        'keterangan' => $keterangan,
+    ],
+]);
+
 header("Location: ../index.php?page=barang_masuk&success=Barang masuk berhasil ditambahkan");
 ?>

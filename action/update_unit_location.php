@@ -60,6 +60,14 @@ if ($id_lokasi !== null && !asset_unit_lokasi_exists($koneksi, $id_lokasi)) {
 }
 
 $old_location = get_asset_unit_location_text($koneksi, $unit);
+$oldGudangId = isset($unit['id_gudang']) && $unit['id_gudang'] !== null ? intval($unit['id_gudang']) : null;
+
+if ($id_gudang !== null && $oldGudangId !== null && $id_gudang !== $oldGudangId) {
+    http_response_code(400);
+    echo json_encode(['error' => 'Pindah antar gudang wajib melalui mutasi barang resmi. Gunakan menu mutasi barang.']);
+    exit;
+}
+
 $fields = [];
 $hasLokasiColumn = schema_has_column($koneksi, 'unit_barang', 'id_lokasi');
 if ($id_gudang !== null) {
@@ -130,6 +138,25 @@ try {
         'id_unit_barang' => $id_unit,
         'id_gudang' => $id_gudang ?? ($unit['id_gudang'] ?? null),
         'metadata_json' => [
+            'lokasi_sebelum' => $old_location,
+            'lokasi_sesudah' => $new_location,
+            'note' => $note,
+        ],
+    ]);
+
+    save_histori_log_entry($koneksi, [
+        'ref_type' => 'unit',
+        'ref_id' => $id_unit,
+        'event_type' => 'lokasi_internal_diubah',
+        'produk_id' => $unit['id_produk'],
+        'unit_barang_id' => $id_unit,
+        'gudang_id' => $id_gudang ?? ($unit['id_gudang'] ?? null),
+        'user_id' => $operator,
+        'user_name_snapshot' => get_current_user_name($koneksi) ?? 'System',
+        'target_user_id' => $unit['id_user'] ?? null,
+        'target_user_name_snapshot' => get_user_name_by_id($koneksi, $unit['id_user'] ?? null),
+        'deskripsi' => 'Perubahan lokasi internal unit asset di gudang yang sama.',
+        'meta_json' => [
             'lokasi_sebelum' => $old_location,
             'lokasi_sesudah' => $new_location,
             'note' => $note,

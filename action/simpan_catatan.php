@@ -62,6 +62,28 @@ if ($saved) {
             'judul' => $judul,
         ],
     ]);
+
+    $historiRefType = $idUnitBarang ? 'unit' : 'tracking';
+    $historiRefId = $idUnitBarang ?: ($idTransaksi ?: ($idProduk ?: ($idGudang ?: null)));
+    if ($historiRefId !== null) {
+        save_histori_log_entry($koneksi, [
+            'ref_type' => $historiRefType,
+            'ref_id' => $historiRefId,
+            'event_type' => 'catatan_manual',
+            'produk_id' => $idProduk,
+            'unit_barang_id' => $idUnitBarang,
+            'gudang_id' => $idGudang,
+            'user_id' => $createdBy,
+            'user_name_snapshot' => get_current_user_name($koneksi) ?? 'System',
+            'deskripsi' => 'Catatan manual ditambahkan sebagai pelengkap histori resmi, bukan pengganti transaksi.',
+            'meta_json' => [
+                'tipe_target' => $tipeTarget,
+                'kategori_catatan' => $kategoriCatatan,
+                'judul' => $judul,
+                'catatan' => $catatan,
+            ],
+        ]);
+    }
 }
 
 if ($idProduk) {

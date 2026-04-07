@@ -11,7 +11,7 @@ require_auth_roles(['admin', 'petugas'], [
     <div class="form-header">
         <h5>Form Tambah Kategori Baru</h5>
     </div>
-    <form action="actions/simpan_kategori.php" method="POST">
+    <form action="action/simpan_kategori.php" method="POST">
         <div class="mb-3">
             <label for="nama_ktgr" class="form-label">Nama Kategori</label> 
             <input type="text" class="form-control" id="nama_ktgr" name="nama_ktgr" placeholder="Inputkan Nama Kategori" required>

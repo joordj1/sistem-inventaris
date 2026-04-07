@@ -224,7 +224,7 @@ if (schema_table_exists($koneksi, 'riwayat_unit_barang')) {
 }
 
 $gudangRows = fetchAllRows($koneksi->query("SELECT id_gudang, nama_gudang FROM gudang ORDER BY nama_gudang ASC"));
-$userRows = fetchAllRows($koneksi->query("SELECT id_user, nama FROM user ORDER BY nama ASC"));
+$userRows = get_active_user_rows($koneksi);
 ?>
 
 <div class="container">
@@ -269,11 +269,18 @@ $userRows = fetchAllRows($koneksi->query("SELECT id_user, nama FROM user ORDER B
                             <div><strong>Status aktif:</strong> <?= htmlspecialchars($currentStatusLabel) ?></div>
                             <div><strong>Aksi valid:</strong> <?= htmlspecialchars(!empty($availableActions) ? implode(', ', $availableActions) : 'Tidak ada aksi cepat yang tersedia') ?></div>
                         </div>
+                        <div class="d-flex flex-wrap gap-2 mb-3">
+                            <a href="index.php?page=mutasi_barang&action=form&gudang_asal_id=<?= intval($unit['id_gudang'] ?? 0) ?>" class="btn btn-sm btn-outline-primary">Mutasi Resmi</a>
+                            <a href="index.php?page=serah_terima&action=form&gudang_asal_id=<?= intval($unit['id_gudang'] ?? 0) ?>" class="btn btn-sm btn-outline-success">Serah Terima Formal</a>
+                        </div>
+                        <div class="alert alert-light border">
+                            Pindah antar gudang harus lewat mutasi resmi. Assign/release cepat tetap ada untuk operasi ringan tanpa berita acara.
+                        </div>
                         <?php if (!$canManageInventory): ?>
                         <div class="alert alert-light border">Role `viewer` tidak dapat mengubah unit asset.</div>
                         <?php else: ?>
                         <?php if ($canMove): ?>
-                        <form class="unit-action-form" data-url="actions/update_unit_location.php" data-confirm="Pindahkan unit ini ke lokasi baru?">
+                        <form class="unit-action-form" data-url="action/update_unit_location.php" data-confirm="Pindahkan unit ini ke lokasi baru?">
                             <input type="hidden" name="id_unit_barang" value="<?= $unit['id_unit_barang'] ?>">
                             <div class="mb-2">
                                 <label class="form-label">Pindah ke Gudang</label>
@@ -293,7 +300,7 @@ $userRows = fetchAllRows($koneksi->query("SELECT id_user, nama FROM user ORDER B
                         <?php endif; ?>
 
                         <?php if ($canAssign): ?>
-                        <form class="unit-action-form" data-url="actions/assign_unit_barang.php" data-confirm="Assign / pinjam unit ini ke user terpilih?">
+                        <form class="unit-action-form" data-url="action/assign_unit_barang.php" data-confirm="Assign / pinjam unit ini ke user terpilih?">
                             <input type="hidden" name="id_unit_barang" value="<?= $unit['id_unit_barang'] ?>">
                             <div class="mb-2">
                                 <label class="form-label">Assign ke User</label>
@@ -309,14 +316,14 @@ $userRows = fetchAllRows($koneksi->query("SELECT id_user, nama FROM user ORDER B
                         <?php endif; ?>
 
                         <?php if ($canRelease): ?>
-                        <form class="unit-action-form" data-url="actions/release_unit_barang.php" data-confirm="Release / kembalikan unit ini menjadi tersedia?">
+                        <form class="unit-action-form" data-url="action/release_unit_barang.php" data-confirm="Release / kembalikan unit ini menjadi tersedia?">
                             <input type="hidden" name="id_unit_barang" value="<?= $unit['id_unit_barang'] ?>">
                             <button type="submit" class="btn btn-sm btn-warning mb-2">Kembali / Release</button>
                         </form>
                         <?php endif; ?>
 
                         <?php if ($canSetTersedia): ?>
-                        <form class="unit-action-form" data-url="actions/update_unit_status.php" data-confirm="Set unit ini kembali menjadi tersedia?">
+                        <form class="unit-action-form" data-url="action/update_unit_status.php" data-confirm="Set unit ini kembali menjadi tersedia?">
                             <input type="hidden" name="id_unit_barang" value="<?= $unit['id_unit_barang'] ?>">
                             <input type="hidden" name="status" value="tersedia">
                             <button type="submit" class="btn btn-sm btn-outline-success mb-2">Set Tersedia</button>
@@ -324,7 +331,7 @@ $userRows = fetchAllRows($koneksi->query("SELECT id_user, nama FROM user ORDER B
                         <?php endif; ?>
 
                         <?php if ($canMarkPerbaikan): ?>
-                        <form class="unit-action-form" data-url="actions/update_unit_status.php" data-confirm="Ubah status unit ini menjadi perbaikan?">
+                        <form class="unit-action-form" data-url="action/update_unit_status.php" data-confirm="Ubah status unit ini menjadi perbaikan?">
                             <input type="hidden" name="id_unit_barang" value="<?= $unit['id_unit_barang'] ?>">
                             <input type="hidden" name="status" value="perbaikan">
                             <button type="submit" class="btn btn-sm btn-secondary mb-2">Mark Perbaikan</button>
@@ -332,7 +339,7 @@ $userRows = fetchAllRows($koneksi->query("SELECT id_user, nama FROM user ORDER B
                         <?php endif; ?>
 
                         <?php if ($canMarkRusak): ?>
-                        <form class="unit-action-form" data-url="actions/update_unit_status.php" data-confirm="Tandai unit ini sebagai rusak?">
+                        <form class="unit-action-form" data-url="action/update_unit_status.php" data-confirm="Tandai unit ini sebagai rusak?">
                             <input type="hidden" name="id_unit_barang" value="<?= $unit['id_unit_barang'] ?>">
                             <input type="hidden" name="status" value="rusak">
                             <button type="submit" class="btn btn-sm btn-danger">Mark Rusak</button>
@@ -393,6 +400,84 @@ $userRows = fetchAllRows($koneksi->query("SELECT id_user, nama FROM user ORDER B
                 <?php endif; ?>
                 </tbody>
             </table>
+        </div>
+    </div>
+
+    <?php
+    $mutasiUnitRows = fetch_histori_logs($koneksi, ['ref_type' => 'mutasi', 'unit_barang_id' => $id_unit_barang], 25);
+    $handoverUnitRows = fetch_histori_logs($koneksi, ['ref_type' => 'handover', 'unit_barang_id' => $id_unit_barang], 25);
+    $unitLogRows = fetch_histori_logs($koneksi, ['ref_type' => 'unit', 'unit_barang_id' => $id_unit_barang], 25);
+    ?>
+
+    <div class="row g-4 mt-2">
+        <div class="col-lg-4">
+            <div class="card h-100">
+                <div class="card-header">Histori Mutasi</div>
+                <div class="card-body table-container overflowy" style="max-height: 320px;">
+                    <table class="table table-sm table-bordered table-striped mb-0">
+                        <thead>
+                            <tr><th>Waktu</th><th>Event</th><th>Deskripsi</th></tr>
+                        </thead>
+                        <tbody>
+                            <?php if (!empty($mutasiUnitRows)): foreach ($mutasiUnitRows as $row): ?>
+                            <tr>
+                                <td><?= htmlspecialchars($row['created_at'] ?? '-') ?></td>
+                                <td><?= htmlspecialchars($row['event_type'] ?? '-') ?></td>
+                                <td><?= htmlspecialchars($row['deskripsi'] ?? '-') ?></td>
+                            </tr>
+                            <?php endforeach; else: ?>
+                            <tr><td colspan="3" class="text-center">Belum ada histori mutasi resmi.</td></tr>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card h-100">
+                <div class="card-header">Histori Serah Terima</div>
+                <div class="card-body table-container overflowy" style="max-height: 320px;">
+                    <table class="table table-sm table-bordered table-striped mb-0">
+                        <thead>
+                            <tr><th>Waktu</th><th>Event</th><th>Target</th></tr>
+                        </thead>
+                        <tbody>
+                            <?php if (!empty($handoverUnitRows)): foreach ($handoverUnitRows as $row): ?>
+                            <tr>
+                                <td><?= htmlspecialchars($row['created_at'] ?? '-') ?></td>
+                                <td><?= htmlspecialchars($row['event_type'] ?? '-') ?></td>
+                                <td><?= htmlspecialchars($row['target_user_name_snapshot'] ?? '-') ?></td>
+                            </tr>
+                            <?php endforeach; else: ?>
+                            <tr><td colspan="3" class="text-center">Belum ada histori serah terima formal.</td></tr>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card h-100">
+                <div class="card-header">Histori Log Unit</div>
+                <div class="card-body table-container overflowy" style="max-height: 320px;">
+                    <table class="table table-sm table-bordered table-striped mb-0">
+                        <thead>
+                            <tr><th>Waktu</th><th>Event</th><th>Oleh</th></tr>
+                        </thead>
+                        <tbody>
+                            <?php if (!empty($unitLogRows)): foreach ($unitLogRows as $row): ?>
+                            <tr>
+                                <td><?= htmlspecialchars($row['created_at'] ?? '-') ?></td>
+                                <td><?= htmlspecialchars($row['event_type'] ?? '-') ?></td>
+                                <td><?= htmlspecialchars($row['user_name_snapshot'] ?? '-') ?></td>
+                            </tr>
+                            <?php endforeach; else: ?>
+                            <tr><td colspan="3" class="text-center">Belum ada histori log unit.</td></tr>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
 </div>

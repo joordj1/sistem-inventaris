@@ -23,6 +23,10 @@ $pageRoleMap = [
     'edit_gudang' => ['admin', 'petugas'],
     'tambah_barang_masuk' => ['admin', 'petugas'],
     'tambah_barang_keluar' => ['admin', 'petugas'],
+    'mutasi_barang' => ['admin', 'petugas', 'viewer'],
+    'serah_terima' => ['admin', 'petugas', 'viewer'],
+    'report_mutasi' => ['admin', 'petugas', 'viewer'],
+    'histori_log' => ['admin', 'petugas', 'viewer'],
 ];
 ?>
 
@@ -75,6 +79,18 @@ $pageRoleMap = [
                     break;
                 case 'laporan':
                     include "pages/laporan.php";
+                    break;
+                case 'mutasi_barang':
+                    include "pages/mutasi_barang.php";
+                    break;
+                case 'serah_terima':
+                    include "pages/serah_terima.php";
+                    break;
+                case 'report_mutasi':
+                    include "pages/report_mutasi.php";
+                    break;
+                case 'histori_log':
+                    include "pages/histori_log.php";
                     break;
                 case 'logout':
                     include "pages/logout.php";

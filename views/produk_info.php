@@ -171,7 +171,7 @@ $query = "SELECT produk.id_produk, produk.kode_produk, produk.nama_produk, kateg
                 <?php if (!$canManageInventory): ?>
                 <div class="alert alert-secondary">Role `viewer` hanya dapat melihat detail dan riwayat tracking.</div>
                 <?php else: ?>
-                <form action="actions/update_tracking.php" method="post">
+                <form action="action/update_tracking.php" method="post">
                     <input type="hidden" name="id_produk" value="<?= $data['id_produk'] ?>">
 
                     <?php if ($isAsset): ?>
@@ -303,7 +303,7 @@ $query = "SELECT produk.id_produk, produk.kode_produk, produk.nama_produk, kateg
             <div class="col-12">
                 <h4>Catatan Barang & Transaksi</h4>
                 <?php if ($canManageInventory): ?>
-                <form action="actions/simpan_catatan.php" method="post" class="border rounded p-3 mb-3 bg-light">
+                <form action="action/simpan_catatan.php" method="post" class="border rounded p-3 mb-3 bg-light">
                     <input type="hidden" name="id_produk" value="<?= intval($data['id_produk']) ?>">
                     <input type="hidden" name="id_gudang" value="<?= intval($data['id_gudang'] ?? 0) ?>">
                     <input type="hidden" name="tipe_target" value="produk">

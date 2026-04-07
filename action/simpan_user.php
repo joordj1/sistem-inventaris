@@ -29,7 +29,13 @@ if ($nama === '' || $username === '' || $passwordRaw === '' || $email === '') {
     exit;
 }
 
-$stmtCheck = $koneksi->prepare("SELECT id_user FROM user WHERE username = ? LIMIT 1");
+$duplicateSql = "SELECT id_user FROM user WHERE username = ?";
+if (schema_has_column_now($koneksi, 'user', 'deleted_at')) {
+    $duplicateSql .= " AND deleted_at IS NULL";
+}
+$duplicateSql .= " LIMIT 1";
+
+$stmtCheck = $koneksi->prepare($duplicateSql);
 $stmtCheck->bind_param('s', $username);
 $stmtCheck->execute();
 $resultCheckUsername = $stmtCheck->get_result();

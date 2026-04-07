@@ -1,7 +1,7 @@
 // Fungsi konfirmasi penghapusan gudang dengan SweetAlert2
 function confirmDeleteGudang(id_gudang) {
     // Lakukan pengecekan apakah gudang memiliki produk terkait
-    fetch(`actions/cek_produk_in_gudang.php?id_gudang=${id_gudang}`)
+    fetch(`action/cek_produk_in_gudang.php?id_gudang=${id_gudang}`)
         .then(response => response.json())
         .then(data => {
             if (data.hasProduk) {

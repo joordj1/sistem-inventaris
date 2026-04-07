@@ -27,7 +27,7 @@ if ($id_gudang) {
     <div class="form-header">
         <h5>Edit Data Gudang</h5>
     </div>
-    <form action="actions/update_gudang.php" method="post">
+    <form action="action/update_gudang.php" method="post">
         <input type="hidden" name="id_gudang" value="<?= $id_gudang ?>">
         
         <div class="mb-3">

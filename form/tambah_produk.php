@@ -20,7 +20,7 @@ $resultGudang = $koneksi->query($queryGudang);
     <div class="form-header">
         <h5>Form Tambah Data Produk</h5>
     </div>
-    <form action="actions/simpan_produk.php" method="POST" enctype="multipart/form-data">
+    <form action="action/simpan_produk.php" method="POST" enctype="multipart/form-data">
         <div class="mb-3">
             <label for="code" class="form-label">Code Produk</label>
             <input type="text" class="form-control" id="code" name="code" placeholder="Inputkan Code Produk" required>

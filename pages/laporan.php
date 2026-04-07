@@ -44,5 +44,15 @@
                 </div>
             </a>
         </div>
+
+        <div class="col-md-6">
+            <a href="index.php?page=report_mutasi" class="text-decoration-none">
+                <div class="card bg-success text-white text-center">
+                    <i class="bi bi-arrow-left-right display-1"></i>
+                    <h5 class="mt-3">Report Mutasi Barang</h5>
+                    <p class="small">Lihat mutasi barang antar gudang per periode</p>
+                </div>
+            </a>
+        </div>
     </div>
 </div>

@@ -8,7 +8,7 @@ require_auth_roles(['admin'], [
     <div class="form-header">
         <h5>Form Tambah Data User</h5>
     </div>
-    <form action="actions/simpan_user.php" method="POST">
+    <form action="action/simpan_user.php" method="POST">
         <div class="mb-3">
             <label for="nama" class="form-label">Nama</label>
             <input type="text" class="form-control" id="nama" name="nama" placeholder="Inputkan Nama User" required>

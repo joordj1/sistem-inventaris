@@ -2,7 +2,7 @@
 function confirmDeleteUser(id_user) {
     Swal.fire({
         title: 'Apakah Anda yakin?',
-        text: "User ini akan dihapus",
+        text: "User ini akan dinonaktifkan agar histori tetap aman",
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#3085d6',
@@ -17,8 +17,8 @@ function confirmDeleteUser(id_user) {
                     if (data.success) {
                         Swal.fire({
                             icon: 'success',
-                            title: 'Terhapus!',
-                            text: 'User berhasil dihapus.',
+                            title: 'Dinonaktifkan!',
+                            text: 'User berhasil dinonaktifkan secara aman.',
                             showConfirmButton: true
                         }).then(() => {
                             location.reload(); // Refresh halaman setelah berhasil menghapus
@@ -27,7 +27,7 @@ function confirmDeleteUser(id_user) {
                         Swal.fire({
                             icon: 'error',
                             title: 'Gagal',
-                            text: 'Terjadi kesalahan saat menghapus user.',
+                            text: data.error || 'Terjadi kesalahan saat menghapus user.',
                             showConfirmButton: true
                         });
                     }

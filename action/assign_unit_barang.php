@@ -108,6 +108,24 @@ try {
         ],
     ]);
 
+    save_histori_log_entry($koneksi, [
+        'ref_type' => 'unit',
+        'ref_id' => $id_unit,
+        'event_type' => 'assign_cepat',
+        'produk_id' => $unit['id_produk'],
+        'unit_barang_id' => $id_unit,
+        'gudang_id' => $unit['id_gudang'] ?? null,
+        'user_id' => $operator,
+        'user_name_snapshot' => get_current_user_name($koneksi) ?? 'System',
+        'target_user_id' => $id_user,
+        'target_user_name_snapshot' => get_user_name_by_id($koneksi, $id_user),
+        'deskripsi' => 'Assign cepat unit asset. Untuk BA formal gunakan modul serah terima barang.',
+        'meta_json' => [
+            'lokasi' => $previousLocation,
+            'note' => $note,
+        ],
+    ]);
+
     $koneksi->commit();
 } catch (Exception $e) {
     $koneksi->rollback();

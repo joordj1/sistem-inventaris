@@ -5,6 +5,8 @@ $barangMasuk = 0;
 $barangKeluar = 0;
 $totalKategori = 0;
 $totalGudang = 0;
+$totalMutasi = 0;
+$totalHandoverAktif = 0;
 
 if (isset($koneksi)) {
     $query = $koneksi->query("SELECT COUNT(*) AS total from produk");
@@ -21,6 +23,16 @@ if (isset($koneksi)) {
 
     $query = $koneksi->query("SELECT COUNT(*) AS total FROM gudang");
     if ($query) $totalGudang = $query->fetch_assoc()['total'];
+
+    if (schema_table_exists_now($koneksi, 'mutasi_barang')) {
+        $query = $koneksi->query("SELECT COUNT(*) AS total FROM mutasi_barang");
+        if ($query) $totalMutasi = $query->fetch_assoc()['total'];
+    }
+
+    if (schema_table_exists_now($koneksi, 'serah_terima_barang')) {
+        $query = $koneksi->query("SELECT COUNT(*) AS total FROM serah_terima_barang WHERE status = 'aktif'");
+        if ($query) $totalHandoverAktif = $query->fetch_assoc()['total'];
+    }
 
     // Data chart 1 per bulan
     $chartBulanan = [];
@@ -101,6 +113,23 @@ $katData = array_values($chartKategori);
     </div>
 </div>
 
+<?php if (schema_table_exists_now($koneksi, 'mutasi_barang') || schema_table_exists_now($koneksi, 'serah_terima_barang')): ?>
+<div class="dashboard-stats-grid mb-4" aria-label="Ringkasan prioritas dua" style="display:flex; gap:14px; flex-wrap:wrap; width:100%; align-items:stretch;">
+    <div class="stats-card" style="flex:1 1 280px; min-height:104px; padding:12px 14px; border-radius:14px; display:flex; flex-direction:column; justify-content:center; gap:6px;">
+        <div class="stat-icon" style="width:36px; height:36px; display:inline-flex; align-items:center; justify-content:center; font-size:1.05rem;"><i class="bi bi-arrow-left-right"></i></div>
+        <div class="stat-value" style="font-size:1.9rem; font-weight:700; line-height:1;"><?= number_format($totalMutasi,0,',','.'); ?></div>
+        <div class="stat-label" style="font-size:0.82rem; line-height:1.25;">Total Mutasi Resmi</div>
+        <a href="index.php?page=mutasi_barang" class="small text-decoration-none">Buka modul mutasi</a>
+    </div>
+    <div class="stats-card" style="flex:1 1 280px; min-height:104px; padding:12px 14px; border-radius:14px; display:flex; flex-direction:column; justify-content:center; gap:6px;">
+        <div class="stat-icon" style="width:36px; height:36px; display:inline-flex; align-items:center; justify-content:center; font-size:1.05rem;"><i class="bi bi-clipboard-check"></i></div>
+        <div class="stat-value" style="font-size:1.9rem; font-weight:700; line-height:1;"><?= number_format($totalHandoverAktif,0,',','.'); ?></div>
+        <div class="stat-label" style="font-size:0.82rem; line-height:1.25;">Serah Terima Aktif</div>
+        <a href="index.php?page=serah_terima" class="small text-decoration-none">Buka modul serah terima</a>
+    </div>
+</div>
+<?php endif; ?>
+
 <div class="chart-grid">
     <div class="chart-card">
         <h6>Barang Masuk vs Barang Keluar</h6>
@@ -178,6 +207,28 @@ $katData = array_values($chartKategori);
                 <div class="card-body">
                     <i class="bi bi-receipt display-1" style="color: var(--color-warning)"></i>
                     <h5 class="card-title mt-3">Transaksi Barang</h5>
+                </div>
+            </div>
+        </a>
+    </div>
+
+    <div class="col">
+        <a href="index.php?page=mutasi_barang" class="text-decoration-none">
+            <div class="card card-interactive h-100 text-center">
+                <div class="card-body">
+                    <i class="bi bi-arrow-left-right display-1" style="color: var(--color-success)"></i>
+                    <h5 class="card-title mt-3">Mutasi Barang</h5>
+                </div>
+            </div>
+        </a>
+    </div>
+
+    <div class="col">
+        <a href="index.php?page=serah_terima" class="text-decoration-none">
+            <div class="card card-interactive h-100 text-center">
+                <div class="card-body">
+                    <i class="bi bi-clipboard-check display-1" style="color: var(--color-info)"></i>
+                    <h5 class="card-title mt-3">Serah Terima</h5>
                 </div>
             </div>
         </a>

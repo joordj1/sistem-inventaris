@@ -16,7 +16,7 @@ $resultProduk = $koneksi->query($queryProduk);
     <div class="form-header">
         <h5>Form Tambah Barang Keluar</h5>
     </div>
-    <form action="actions/simpan_barang_keluar.php" method="POST">
+    <form action="action/simpan_barang_keluar.php" method="POST">
         <div class="mb-3">
             <label for="no_invoice" class="form-label">No Invoice</label>
             <input type="text" class="form-control" id="no_invoice" name="no_invoice" placeholder="Inputkan No Invoice" required>
@@ -69,7 +69,7 @@ document.querySelector("form").addEventListener("submit", function (e) {
     e.preventDefault();
     const noInvoice = document.getElementById("no_invoice").value;
 
-    fetch(`actions/cek_invoice.php?no_invoice=${noInvoice}`)
+    fetch(`action/cek_invoice.php?no_invoice=${noInvoice}`)
         .then(response => response.json())
         .then(data => {
             if (data.exists) {
