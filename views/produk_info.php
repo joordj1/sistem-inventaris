@@ -3,6 +3,50 @@ function formatRupiah($angka) {
     return 'Rp ' . number_format($angka, 0, ',', '.');
 }
 
+function formatTrackingHistoryChange($before, $after) {
+    $before = trim((string) ($before ?? ''));
+    $after = trim((string) ($after ?? ''));
+    $before = $before !== '' ? $before : '-';
+    $after = $after !== '' ? $after : '-';
+
+    return $before === $after ? $after : ($before . ' -> ' . $after);
+}
+
+function resolveTrackingActivityDisplay($row) {
+    return get_tracking_activity_label(infer_tracking_activity_type($row, 'update'));
+}
+
+function resolveTrackingNoteDisplay($row, $scope) {
+    $note = trim((string) ($row['catatan'] ?? ($row['note'] ?? '')));
+    if ($note !== '') {
+        return $note;
+    }
+
+    return build_tracking_note_fallback([
+        'aktivitas' => $row['aktivitas'] ?? null,
+        'activity_type' => $row['activity_type'] ?? null,
+        'status_sebelum' => $row['status_sebelum'] ?? null,
+        'status_sesudah' => $row['status_sesudah'] ?? null,
+        'kondisi_sebelum' => $row['kondisi_sebelum'] ?? null,
+        'kondisi_sesudah' => $row['kondisi_sesudah'] ?? null,
+        'lokasi_sebelum' => $row['lokasi_sebelum'] ?? null,
+        'lokasi_sesudah' => $row['lokasi_sesudah'] ?? null,
+        'id_user_sebelum' => $row['id_user_sebelum'] ?? null,
+        'id_user_sesudah' => $row['id_user_sesudah'] ?? null,
+        'id_user_terkait' => $row['related_user_id'] ?? ($row['id_user'] ?? null),
+    ], $scope);
+}
+
+function resolveTrackingActorDisplay($row, $joinedField) {
+    $snapshot = trim((string) ($row['actor_name_snapshot'] ?? ''));
+    if ($snapshot !== '') {
+        return $snapshot;
+    }
+
+    $joinedName = trim((string) ($row[$joinedField] ?? ''));
+    return $joinedName !== '' ? $joinedName : '-';
+}
+
 $canManageInventory = inventory_user_can_manage();
 
 if (isset($_GET['id_produk']) || isset($_GET['kode_produk'])) {
@@ -66,10 +110,41 @@ $query = "SELECT produk.id_produk, produk.kode_produk, produk.nama_produk, kateg
             $unitList[] = $u;
         }
 
-        $historyQuery = "SELECT hr.*, u.nama AS user_name, hr.id_unit_barang, ub.kode_unit AS unit_serial FROM riwayat_unit_barang hr
-                         LEFT JOIN user u ON hr.id_user = u.id_user
-                         LEFT JOIN unit_barang ub ON hr.id_unit_barang = ub.id_unit_barang
-                         WHERE ub.id_produk = ? ORDER BY hr.created_at DESC";
+        $historyActivityCol = schema_find_existing_column($koneksi, 'riwayat_unit_barang', ['aktivitas', 'activity_type']);
+        $historyNoteCol = schema_find_existing_column($koneksi, 'riwayat_unit_barang', ['catatan', 'note']);
+        $historyTimeCol = schema_find_existing_column($koneksi, 'riwayat_unit_barang', ['created_at', 'changed_at']);
+        $historyActorUserCol = schema_find_existing_column($koneksi, 'riwayat_unit_barang', ['id_user_changed']);
+        $historyRelatedUserCol = schema_find_existing_column($koneksi, 'riwayat_unit_barang', ['id_user_terkait', 'id_user_sesudah', 'id_user']);
+        $historyActorSnapshotCol = schema_find_existing_column($koneksi, 'riwayat_unit_barang', ['actor_name_snapshot', 'user_name_snapshot']);
+
+        $historyQuery = "SELECT hr.*,
+                                u_related.nama AS user_name,
+                                u_actor.nama AS nama_user_actor,
+                                " . ($historyActivityCol !== null ? "hr.`$historyActivityCol`" : "NULL") . " AS aktivitas,
+                                " . ($historyNoteCol !== null ? "hr.`$historyNoteCol`" : "NULL") . " AS catatan,
+                                " . ($historyTimeCol !== null ? "hr.`$historyTimeCol`" : "NULL") . " AS history_time,
+                                " . ($historyActorSnapshotCol !== null ? "hr.`$historyActorSnapshotCol`" : "NULL") . " AS actor_name_snapshot,
+                                " . ($historyRelatedUserCol !== null ? "hr.`$historyRelatedUserCol`" : "NULL") . " AS related_user_id,
+                                hr.id_unit_barang,
+                                ub.kode_unit AS unit_serial
+                         FROM riwayat_unit_barang hr";
+        if ($historyRelatedUserCol !== null) {
+            $historyQuery .= "\n                         LEFT JOIN user u_related ON hr.`$historyRelatedUserCol` = u_related.id_user";
+        } else {
+            $historyQuery .= "\n                         LEFT JOIN user u_related ON 1 = 0";
+        }
+        if ($historyActorUserCol !== null) {
+            $historyQuery .= "\n                         LEFT JOIN user u_actor ON hr.`$historyActorUserCol` = u_actor.id_user";
+        } else {
+            $historyQuery .= "\n                         LEFT JOIN user u_actor ON 1 = 0";
+        }
+        $historyQuery .= "\n                         LEFT JOIN unit_barang ub ON hr.id_unit_barang = ub.id_unit_barang
+                         WHERE ub.id_produk = ?";
+        if ($historyTimeCol !== null) {
+            $historyQuery .= " ORDER BY hr.`$historyTimeCol` DESC";
+        } else {
+            $historyQuery .= " ORDER BY hr.id DESC";
+        }
         $stmtHist = $koneksi->prepare($historyQuery);
         $stmtHist->bind_param('i', $data['id_produk']);
         $stmtHist->execute();
@@ -78,7 +153,9 @@ $query = "SELECT produk.id_produk, produk.kode_produk, produk.nama_produk, kateg
             $unitHistory[] = $h;
         }
     } else {
-        $sqlHistory = "SELECT tb.*, u.nama AS id_user_changed_name, uc.nama AS user_name FROM tracking_barang tb
+        $trackingActorSnapshotCol = schema_find_existing_column($koneksi, 'tracking_barang', ['actor_name_snapshot', 'actor_nama_snapshot', 'user_name_snapshot']);
+        $sqlHistory = "SELECT tb.*, " . ($trackingActorSnapshotCol !== null ? "tb.`$trackingActorSnapshotCol`" : "NULL") . " AS actor_name_snapshot,
+                              u.nama AS id_user_changed_name, uc.nama AS user_name FROM tracking_barang tb
                        LEFT JOIN user u ON tb.id_user_changed = u.id_user
                        LEFT JOIN user uc ON tb.id_user_sesudah = uc.id_user
                        WHERE tb.id_produk = ? ORDER BY tb.changed_at DESC";
@@ -393,9 +470,15 @@ $query = "SELECT produk.id_produk, produk.kode_produk, produk.nama_produk, kateg
                         <?php if ($isAsset ? count($unitHistory) > 0 : count($trackings) > 0): ?>
                             <?php $historyData = $isAsset ? $unitHistory : $trackings; ?>
                             <?php foreach ($historyData as $index => $t): ?>
+                                <?php
+                                $activityLabel = resolveTrackingActivityDisplay($t);
+                                $displayNote = resolveTrackingNoteDisplay($t, $isAsset ? 'unit' : 'barang');
+                                $displayActor = resolveTrackingActorDisplay($t, $isAsset ? 'nama_user_actor' : 'id_user_changed_name');
+                                $displayUser = trim((string) ($t['user_name'] ?? '')) !== '' ? $t['user_name'] : '-';
+                                ?>
                                 <tr>
                                     <td><?= $index + 1 ?></td>
-                                    <td><?= htmlspecialchars($isAsset ? ($t['created_at'] ?? '-') : ($t['changed_at'] ?? '-')) ?></td>
+                                    <td><?= htmlspecialchars($isAsset ? ($t['history_time'] ?? ($t['created_at'] ?? '-')) : ($t['changed_at'] ?? '-')) ?></td>
                                     <td>
                                         <?php
                                         if (!empty($t['unit_serial'])) {
@@ -407,13 +490,13 @@ $query = "SELECT produk.id_produk, produk.kode_produk, produk.nama_produk, kateg
                                         }
                                         ?>
                                     </td>
-                                    <td><?= htmlspecialchars($isAsset ? ($t['aktivitas'] ?? '-') : ($t['activity_type'] ?? '-')) ?></td>
+                                    <td><?= htmlspecialchars($activityLabel) ?></td>
                                     <td><?= htmlspecialchars(($t['status_sebelum'] ?? '-') . ' → ' . ($t['status_sesudah'] ?? '-')) ?></td>
                                     <td><?= htmlspecialchars(($t['kondisi_sebelum'] ?? '-') . ' → ' . ($t['kondisi_sesudah'] ?? '-')) ?></td>
                                     <td><?= htmlspecialchars(($t['lokasi_sebelum'] ?? '-') . ' → ' . ($t['lokasi_sesudah'] ?? '-')) ?></td>
-                                    <td><?= htmlspecialchars($t['user_name'] ?? '-') ?></td>
-                                    <td><?= htmlspecialchars($isAsset ? '-' : ($t['id_user_changed_name'] ?? '-')) ?></td>
-                                    <td><?= htmlspecialchars($isAsset ? ($t['catatan'] ?? '-') : ($t['note'] ?? '-')) ?></td>
+                                    <td><?= htmlspecialchars($displayUser) ?></td>
+                                    <td><?= htmlspecialchars($displayActor) ?></td>
+                                    <td><?= htmlspecialchars($displayNote) ?></td>
                                 </tr>
                             <?php endforeach; ?>
                         <?php else: ?>

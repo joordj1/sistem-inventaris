@@ -1,5 +1,6 @@
 <?php
 require '../koneksi/koneksi.php';
+require_once __DIR__ . '/simpan_histori_log.php';
 require_auth_roles(['admin', 'petugas'], [
     'response' => 'page',
     'login_redirect' => '../login.php',
@@ -127,7 +128,7 @@ log_activity($koneksi, [
     ],
 ]);
 
-save_histori_log_entry($koneksi, [
+save_official_histori_log_entry($koneksi, [
     'ref_type' => 'barang_masuk',
     'ref_id' => $id_transaksi,
     'event_type' => 'barang_masuk_dicatat',

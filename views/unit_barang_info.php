@@ -39,6 +39,26 @@ function formatHistoryActivityDetail($value) {
     return get_asset_unit_activity_type_label($value);
 }
 
+function formatHistoryNoteDetail($row) {
+    $note = trim((string) ($row['catatan'] ?? ''));
+    if ($note !== '') {
+        return $note;
+    }
+
+    return build_tracking_note_fallback([
+        'aktivitas' => $row['aktivitas'] ?? null,
+        'status_sebelum' => $row['status_sebelum'] ?? null,
+        'status_sesudah' => $row['status_sesudah'] ?? null,
+        'kondisi_sebelum' => $row['kondisi_sebelum'] ?? null,
+        'kondisi_sesudah' => $row['kondisi_sesudah'] ?? null,
+        'lokasi_sebelum' => $row['lokasi_sebelum'] ?? null,
+        'lokasi_sesudah' => $row['lokasi_sesudah'] ?? null,
+        'id_user_sebelum' => $row['id_user_sebelum'] ?? null,
+        'id_user_sesudah' => $row['id_user_sesudah'] ?? null,
+        'id_user_terkait' => $row['related_user_id'] ?? null,
+    ], 'unit');
+}
+
 if (!isset($_GET['id_unit_barang'])) {
     echo '<div class="alert alert-warning">ID unit_barang tidak disediakan.</div>';
     exit;
@@ -172,6 +192,7 @@ if (schema_table_exists($koneksi, 'riwayat_unit_barang')) {
     $historyTimeCol = schema_find_existing_column($koneksi, 'riwayat_unit_barang', ['created_at', 'changed_at']);
     $historyActorUserCol = schema_find_existing_column($koneksi, 'riwayat_unit_barang', ['id_user_changed', 'id_user']);
     $historyRelatedUserCol = schema_find_existing_column($koneksi, 'riwayat_unit_barang', ['id_user_terkait', 'id_user_sesudah', 'id_user']);
+    $historyActorSnapshotCol = schema_find_existing_column($koneksi, 'riwayat_unit_barang', ['actor_name_snapshot', 'user_name_snapshot']);
 
     $historySelect = [
         ($historyIdCol !== null ? "hr.`$historyIdCol`" : "0") . " AS history_id",
@@ -187,6 +208,7 @@ if (schema_table_exists($koneksi, 'riwayat_unit_barang')) {
         ($historyTimeCol !== null ? "hr.`$historyTimeCol`" : "NULL") . " AS history_time",
         ($historyActorUserCol !== null ? "hr.`$historyActorUserCol`" : "NULL") . " AS actor_user_id",
         ($historyRelatedUserCol !== null ? "hr.`$historyRelatedUserCol`" : "NULL") . " AS related_user_id",
+        ($historyActorSnapshotCol !== null ? "hr.`$historyActorSnapshotCol`" : "NULL") . " AS actor_name_snapshot",
     ];
 
     $historyQuery = "SELECT " . implode(",\n                        ", $historySelect) . ",
@@ -374,11 +396,13 @@ $userRows = get_active_user_rows($koneksi);
                 <?php $i = 1; ?>
                 <?php foreach ($historyRows as $row): ?>
                     <?php
-                    $activityValue = $row['aktivitas'] ?? null;
+                    $activityValue = infer_tracking_activity_type($row, 'update');
                     $activityGroup = get_asset_unit_activity_group($activityValue);
                     $activityLabel = formatHistoryActivityDetail($activityValue);
                     $relatedUser = $row['nama_user_terkait'] ?? null;
-                    $actorUser = $row['nama_user_actor'] ?? null;
+                    $actorSnapshot = trim((string) ($row['actor_name_snapshot'] ?? ''));
+                    $actorUser = $actorSnapshot !== '' ? $actorSnapshot : ($row['nama_user_actor'] ?? null);
+                    $catatan = formatHistoryNoteDetail($row);
                     ?>
                     <tr>
                         <td><?= $i++ ?></td>
@@ -390,7 +414,7 @@ $userRows = get_active_user_rows($koneksi);
                         <td><?= htmlspecialchars(formatHistoryChange($row['lokasi_sebelum'] ?? null, $row['lokasi_sesudah'] ?? null)) ?></td>
                         <td><?= htmlspecialchars(valueOrDash($relatedUser)) ?></td>
                         <td><?= htmlspecialchars(valueOrDash($actorUser)) ?></td>
-                        <td><?= htmlspecialchars(valueOrDash($row['catatan'] ?? null)) ?></td>
+                        <td><?= htmlspecialchars(valueOrDash($catatan)) ?></td>
                     </tr>
                 <?php endforeach; ?>
                 <?php if (empty($historyRows)): ?>

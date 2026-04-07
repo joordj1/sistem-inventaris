@@ -129,7 +129,179 @@ function nullable_int_id($value) {
     return $value > 0 ? $value : null;
 }
 
+function normalize_tracking_activity_type($value, $fallback = 'update') {
+    $normalized = strtolower(trim((string) ($value ?? '')));
+    $fallback = strtolower(trim((string) ($fallback ?? 'update')));
+
+    $map = [
+        'tambah' => 'tambah',
+        'create' => 'tambah',
+        'created' => 'tambah',
+        'pinjam' => 'pinjam',
+        'dipinjam' => 'pinjam',
+        'digunakan' => 'pinjam',
+        'sedang digunakan' => 'pinjam',
+        'kembali' => 'kembali',
+        'dikembalikan' => 'kembali',
+        'release' => 'kembali',
+        'pindah' => 'pindah',
+        'dipindahkan' => 'pindah',
+        'pindah lokasi' => 'pindah',
+        'mutasi' => 'pindah',
+        'perbaikan' => 'perbaikan',
+        'dalam perbaikan' => 'perbaikan',
+        'rusak' => 'rusak',
+        'update' => 'update',
+        'updated' => 'update',
+        'keluarmasuk' => 'keluarmasuk',
+        'barang_masuk' => 'keluarmasuk',
+        'barang_keluar' => 'keluarmasuk',
+        'arsip' => 'arsip',
+    ];
+
+    if ($normalized === '') {
+        return $map[$fallback] ?? 'update';
+    }
+
+    return $map[$normalized] ?? ($map[$fallback] ?? 'update');
+}
+
+function get_tracking_activity_label($value) {
+    $labels = [
+        'tambah' => 'Registrasi',
+        'pinjam' => 'Peminjaman',
+        'kembali' => 'Pengembalian',
+        'pindah' => 'Perpindahan lokasi',
+        'perbaikan' => 'Perbaikan',
+        'rusak' => 'Rusak',
+        'update' => 'Update',
+        'keluarmasuk' => 'Barang masuk/keluar',
+        'arsip' => 'Arsip',
+    ];
+
+    $normalized = normalize_tracking_activity_type($value, 'update');
+    return $labels[$normalized] ?? 'Riwayat';
+}
+
+function infer_tracking_activity_type($data, $fallback = 'update') {
+    $explicitValue = $data['activity_type'] ?? ($data['aktivitas'] ?? null);
+    if (trim((string) ($explicitValue ?? '')) !== '') {
+        return normalize_tracking_activity_type($explicitValue, $fallback);
+    }
+
+    $statusBefore = strtolower(trim((string) ($data['status_sebelum'] ?? '')));
+    $statusAfter = strtolower(trim((string) ($data['status_sesudah'] ?? '')));
+    $kondisiBefore = strtolower(trim((string) ($data['kondisi_sebelum'] ?? '')));
+    $kondisiAfter = strtolower(trim((string) ($data['kondisi_sesudah'] ?? '')));
+    $lokasiBefore = trim((string) ($data['lokasi_sebelum'] ?? ''));
+    $lokasiAfter = trim((string) ($data['lokasi_sesudah'] ?? ''));
+    $userBefore = nullable_int_id($data['id_user_sebelum'] ?? null);
+    $userAfter = nullable_int_id($data['id_user_sesudah'] ?? ($data['id_user_terkait'] ?? null));
+
+    if ($statusBefore === '' && $statusAfter !== '') {
+        return 'tambah';
+    }
+    if ($userBefore === null && $userAfter !== null) {
+        return 'pinjam';
+    }
+    if ($userBefore !== null && $userAfter === null) {
+        return 'kembali';
+    }
+    if ($statusBefore !== $statusAfter) {
+        if (in_array($statusAfter, ['dipinjam', 'digunakan', 'sedang digunakan'], true)) {
+            return 'pinjam';
+        }
+        if ($statusAfter === 'tersedia' && in_array($statusBefore, ['dipinjam', 'digunakan', 'sedang digunakan'], true)) {
+            return 'kembali';
+        }
+        if (in_array($statusAfter, ['perbaikan', 'dalam perbaikan'], true)) {
+            return 'perbaikan';
+        }
+        if ($statusAfter === 'rusak') {
+            return 'rusak';
+        }
+    }
+    if ($lokasiBefore !== $lokasiAfter && ($lokasiBefore !== '' || $lokasiAfter !== '')) {
+        return 'pindah';
+    }
+    if ($kondisiBefore !== $kondisiAfter) {
+        return $kondisiAfter === 'rusak' ? 'rusak' : 'update';
+    }
+
+    return normalize_tracking_activity_type($fallback, 'update');
+}
+
+function build_tracking_note_fallback($data, $scope = 'barang') {
+    $activityType = infer_tracking_activity_type($data, 'update');
+    $statusBefore = strtolower(trim((string) ($data['status_sebelum'] ?? '')));
+    $statusAfter = strtolower(trim((string) ($data['status_sesudah'] ?? '')));
+    $kondisiBefore = strtolower(trim((string) ($data['kondisi_sebelum'] ?? '')));
+    $kondisiAfter = strtolower(trim((string) ($data['kondisi_sesudah'] ?? '')));
+    $lokasiBefore = trim((string) ($data['lokasi_sebelum'] ?? ''));
+    $lokasiAfter = trim((string) ($data['lokasi_sesudah'] ?? ''));
+    $userBefore = nullable_int_id($data['id_user_sebelum'] ?? null);
+    $userAfter = nullable_int_id($data['id_user_sesudah'] ?? ($data['id_user_terkait'] ?? null));
+    $itemLabel = $scope === 'unit' ? 'unit barang' : 'barang';
+
+    switch ($activityType) {
+        case 'tambah':
+            return ucfirst($itemLabel) . ' ditambahkan';
+        case 'pinjam':
+            return 'Barang dipinjam';
+        case 'kembali':
+            return 'Barang dikembalikan';
+        case 'pindah':
+            return 'Perpindahan lokasi';
+        case 'perbaikan':
+            return 'Barang masuk perbaikan';
+        case 'rusak':
+            return 'Update kondisi barang';
+        case 'keluarmasuk':
+            return 'Penyesuaian stok barang';
+        case 'update':
+        default:
+            if ($kondisiBefore !== $kondisiAfter) {
+                return 'Update kondisi barang';
+            }
+            if ($lokasiBefore !== $lokasiAfter) {
+                return 'Perpindahan lokasi';
+            }
+            if ($userBefore !== $userAfter) {
+                return 'Update user barang';
+            }
+            if ($statusBefore !== $statusAfter) {
+                return 'Update status barang';
+            }
+            return 'Update data barang';
+    }
+}
+
+function resolve_tracking_actor_id($data) {
+    return nullable_int_id($data['id_user_changed'] ?? ($data['actor_id'] ?? current_user_id()));
+}
+
+function resolve_tracking_actor_name_snapshot($koneksi, $data) {
+    $snapshot = trim((string) ($data['actor_name_snapshot'] ?? ($data['actor_nama_snapshot'] ?? '')));
+    if ($snapshot !== '') {
+        return $snapshot;
+    }
+
+    $actorId = resolve_tracking_actor_id($data);
+    if ($actorId !== null) {
+        $actorName = get_user_name_by_id($koneksi, $actorId);
+        if (trim((string) ($actorName ?? '')) !== '') {
+            return $actorName;
+        }
+    }
+
+    return get_current_user_name($koneksi) ?? 'System';
+}
+
 function log_tracking_history($koneksi, $data) {
+    if (!schema_table_exists_now($koneksi, 'tracking_barang')) {
+        return false;
+    }
+
     $availableCols = [];
     $result = $koneksi->query("SHOW COLUMNS FROM tracking_barang");
     while ($col = $result ? $result->fetch_assoc() : null) {
@@ -141,6 +313,13 @@ function log_tracking_history($koneksi, $data) {
     $columns = [];
     $values = [];
     $types = '';
+    $activityType = infer_tracking_activity_type($data, 'update');
+    $noteValue = trim((string) ($data['note'] ?? ($data['catatan'] ?? '')));
+    if ($noteValue === '') {
+        $noteValue = build_tracking_note_fallback($data, 'barang');
+    }
+    $actorId = resolve_tracking_actor_id($data);
+    $actorNameSnapshot = resolve_tracking_actor_name_snapshot($koneksi, $data);
 
     // Required tracking identity
     if (isset($colSet['id_produk'])) {
@@ -160,10 +339,22 @@ function log_tracking_history($koneksi, $data) {
         $types .= 's';
     }
 
-    foreach (['status_sebelum','status_sesudah','kondisi_sebelum','kondisi_sesudah','lokasi_sebelum','lokasi_sesudah','activity_type','note'] as $field) {
+    $stringFields = [
+        'status_sebelum' => $data['status_sebelum'] ?? null,
+        'status_sesudah' => $data['status_sesudah'] ?? null,
+        'kondisi_sebelum' => $data['kondisi_sebelum'] ?? null,
+        'kondisi_sesudah' => $data['kondisi_sesudah'] ?? null,
+        'lokasi_sebelum' => $data['lokasi_sebelum'] ?? null,
+        'lokasi_sesudah' => $data['lokasi_sesudah'] ?? null,
+        'activity_type' => $activityType,
+        'note' => $noteValue,
+        'actor_name_snapshot' => $actorNameSnapshot,
+    ];
+
+    foreach ($stringFields as $field => $fieldValue) {
         if (isset($colSet[$field])) {
             $columns[] = $field;
-            $values[] = $data[$field] ?? null;
+            $values[] = $fieldValue;
             $types .= 's';
         }
     }
@@ -175,7 +366,13 @@ function log_tracking_history($koneksi, $data) {
                 continue;
             }
             $columns[] = $field;
-            $values[] = $data[$field] ?? ($field === 'id_user' ? ($data['id_user_terkait'] ?? $data['id_user_sesudah'] ?? $data['id_user_sebelum'] ?? null) : null);
+            if ($field === 'id_user_changed') {
+                $values[] = $actorId;
+            } elseif ($field === 'id_user') {
+                $values[] = $data['id_user'] ?? ($data['id_user_terkait'] ?? $data['id_user_sesudah'] ?? $data['id_user_sebelum'] ?? null);
+            } else {
+                $values[] = $data[$field] ?? null;
+            }
             $types .= 'i';
         }
     }
@@ -203,6 +400,10 @@ function log_tracking_history($koneksi, $data) {
 }
 
 function log_riwayat_unit_barang($koneksi, $data) {
+    if (!schema_table_exists_now($koneksi, 'riwayat_unit_barang')) {
+        return false;
+    }
+
     $availableCols = [];
     $result = $koneksi->query("SHOW COLUMNS FROM riwayat_unit_barang");
     while ($col = $result ? $result->fetch_assoc() : null) {
@@ -214,6 +415,14 @@ function log_riwayat_unit_barang($koneksi, $data) {
     $columns = [];
     $values = [];
     $types = '';
+    $activityType = infer_tracking_activity_type($data, 'update');
+    $noteValue = trim((string) ($data['note'] ?? ($data['catatan'] ?? '')));
+    if ($noteValue === '') {
+        $noteValue = build_tracking_note_fallback($data, 'unit');
+    }
+    $actorId = resolve_tracking_actor_id($data);
+    $relatedUserId = nullable_int_id($data['id_user_terkait'] ?? ($data['id_user_sesudah'] ?? $data['id_user'] ?? null));
+    $actorNameSnapshot = resolve_tracking_actor_name_snapshot($koneksi, $data);
 
     if (isset($colSet['id_unit_barang'])) {
         $columns[] = 'id_unit_barang';
@@ -225,19 +434,56 @@ function log_riwayat_unit_barang($koneksi, $data) {
         $values[] = $data['id_produk'];
         $types .= 'i';
     }
-    foreach (['activity_type','status_sebelum','status_sesudah','kondisi_sebelum','kondisi_sesudah','lokasi_sebelum','lokasi_sesudah','note'] as $field) {
+    foreach (['status_sebelum','status_sesudah','kondisi_sebelum','kondisi_sesudah','lokasi_sebelum','lokasi_sesudah'] as $field) {
         if (isset($colSet[$field])) {
             $columns[] = $field;
             $values[] = $data[$field] ?? null;
             $types .= 's';
         }
     }
-    foreach (['id_user_sebelum','id_user_sesudah','id_user_terkait','id_user_changed','id_user'] as $field) {
+
+    $activityColumn = isset($colSet['aktivitas']) ? 'aktivitas' : (isset($colSet['activity_type']) ? 'activity_type' : null);
+    if ($activityColumn !== null) {
+        $columns[] = $activityColumn;
+        $values[] = $activityType;
+        $types .= 's';
+    }
+
+    $noteColumn = isset($colSet['catatan']) ? 'catatan' : (isset($colSet['note']) ? 'note' : null);
+    if ($noteColumn !== null) {
+        $columns[] = $noteColumn;
+        $values[] = $noteValue;
+        $types .= 's';
+    }
+
+    if (isset($colSet['actor_name_snapshot'])) {
+        $columns[] = 'actor_name_snapshot';
+        $values[] = $actorNameSnapshot;
+        $types .= 's';
+    }
+
+    foreach (['id_user_sebelum','id_user_sesudah'] as $field) {
         if (isset($colSet[$field])) {
             $columns[] = $field;
-            $values[] = $data[$field] ?? ($field === 'id_user' ? ($data['id_user_terkait'] ?? $data['id_user_sesudah'] ?? $data['id_user_sebelum'] ?? null) : null);
+            $values[] = $data[$field] ?? null;
             $types .= 'i';
         }
+    }
+
+    if (isset($colSet['id_user_changed'])) {
+        $columns[] = 'id_user_changed';
+        $values[] = $actorId;
+        $types .= 'i';
+    }
+    if (isset($colSet['id_user_terkait'])) {
+        $columns[] = 'id_user_terkait';
+        $values[] = $relatedUserId;
+        $types .= 'i';
+    }
+    if (isset($colSet['id_user'])) {
+        $columns[] = 'id_user';
+        $values[] = isset($colSet['id_user_terkait']) ? $relatedUserId : $actorId;
+        $types .= 'i';
     }
 
     if (empty($columns)) {
@@ -448,19 +694,7 @@ function is_asset_unit_action_allowed($action, $status) {
 }
 
 function get_asset_unit_activity_type_label($value) {
-    $normalized = strtolower(trim((string) ($value ?? '')));
-    $labels = [
-        'tambah' => 'Registrasi',
-        'pinjam' => 'Peminjaman',
-        'kembali' => 'Pengembalian',
-        'pindah' => 'Mutasi',
-        'perbaikan' => 'Perbaikan',
-        'rusak' => 'Rusak',
-        'update' => 'Update Status',
-        'arsip' => 'Arsip',
-    ];
-
-    return $labels[$normalized] ?? 'Riwayat';
+    return get_tracking_activity_label($value);
 }
 
 function get_asset_unit_activity_group($value) {

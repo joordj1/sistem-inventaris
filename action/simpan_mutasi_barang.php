@@ -1,5 +1,6 @@
 <?php
 include '../koneksi/koneksi.php';
+require_once __DIR__ . '/simpan_histori_log.php';
 
 require_auth_roles(['admin', 'petugas'], [
     'response' => 'page',
@@ -107,6 +108,7 @@ if ($kodeMutasi === null) {
     exit;
 }
 
+ensure_histori_log_table($koneksi);
 $koneksi->begin_transaction();
 
 try {
@@ -208,7 +210,7 @@ try {
             'id_user_changed' => $createdBy,
         ]);
 
-        save_histori_log_entry($koneksi, [
+        save_official_histori_log_entry($koneksi, [
             'ref_type' => 'mutasi',
             'ref_id' => $mutasiId,
             'event_type' => 'detail_consumable_dipindahkan',
@@ -237,17 +239,20 @@ try {
             throw new Exception('Unit yang dipilih bukan asset valid.');
         }
 
+        $unitLabel = trim((string) ($unit['kode_unit'] ?? ''));
+        $unitLabel = $unitLabel !== '' ? $unitLabel : ('Unit #' . $item['unit_barang_id']);
+
         if (intval($unit['id_gudang'] ?? 0) !== $gudangAsalId) {
-            throw new Exception('Unit asset ' . ($unit['serial_number'] ?? ('#' . $item['unit_barang_id'])) . ' tidak berada di gudang asal.');
+            throw new Exception('Unit asset ' . $unitLabel . ' tidak berada di gudang asal.');
         }
 
         if (!empty($unit['id_user'])) {
-            throw new Exception('Unit asset ' . ($unit['serial_number'] ?? ('#' . $item['unit_barang_id'])) . ' sedang terhubung ke user. Gunakan serah terima formal atau release terlebih dahulu.');
+            throw new Exception('Unit asset ' . $unitLabel . ' sedang terhubung ke user. Gunakan serah terima formal atau release terlebih dahulu.');
         }
 
         $unitStatus = normalize_asset_unit_status($unit['status'] ?? null);
         if ($unitStatus !== 'tersedia') {
-            throw new Exception('Unit asset ' . ($unit['serial_number'] ?? ('#' . $item['unit_barang_id'])) . ' tidak dalam status tersedia.');
+            throw new Exception('Unit asset ' . $unitLabel . ' tidak dalam status tersedia.');
         }
 
         $kondisiSesudah = $item['kondisi_sesudah'] !== '' ? $item['kondisi_sesudah'] : ($unit['kondisi'] ?? 'baik');
@@ -295,7 +300,7 @@ try {
             'id_user_changed' => $createdBy,
         ]);
 
-        save_histori_log_entry($koneksi, [
+        save_official_histori_log_entry($koneksi, [
             'ref_type' => 'mutasi',
             'ref_id' => $mutasiId,
             'event_type' => 'detail_asset_dipindahkan',
@@ -304,7 +309,7 @@ try {
             'gudang_id' => $gudangTujuanId,
             'user_id' => $createdBy,
             'user_name_snapshot' => $createdByName,
-            'deskripsi' => 'Mutasi asset ' . ($produk['nama_produk'] ?? 'Asset') . ' unit ' . ($unit['serial_number'] ?? ('#' . $item['unit_barang_id'])),
+            'deskripsi' => 'Mutasi asset ' . ($produk['nama_produk'] ?? 'Asset') . ' unit ' . $unitLabel,
             'meta_json' => [
                 'gudang_asal_id' => $gudangAsalId,
                 'gudang_tujuan_id' => $gudangTujuanId,
@@ -315,7 +320,7 @@ try {
         ]);
     }
 
-    save_histori_log_entry($koneksi, [
+    save_official_histori_log_entry($koneksi, [
         'ref_type' => 'mutasi',
         'ref_id' => $mutasiId,
         'event_type' => 'mutasi_selesai',

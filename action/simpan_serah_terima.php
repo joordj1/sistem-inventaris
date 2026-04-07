@@ -1,5 +1,6 @@
 <?php
 include '../koneksi/koneksi.php';
+require_once __DIR__ . '/simpan_histori_log.php';
 
 require_auth_roles(['admin', 'petugas'], [
     'response' => 'page',
@@ -113,6 +114,7 @@ if ($kodeSerahTerima === null) {
     exit;
 }
 
+ensure_histori_log_table($koneksi);
 $koneksi->begin_transaction();
 
 try {
@@ -197,7 +199,7 @@ try {
             throw new Exception('Detail consumable serah terima gagal disimpan.');
         }
 
-        save_histori_log_entry($koneksi, [
+        save_official_histori_log_entry($koneksi, [
             'ref_type' => 'handover',
             'ref_id' => $serahTerimaId,
             'event_type' => 'handover_consumable_aktif',
@@ -228,17 +230,20 @@ try {
             throw new Exception('Unit yang dipilih bukan asset valid.');
         }
 
+        $unitLabel = trim((string) ($unit['kode_unit'] ?? ''));
+        $unitLabel = $unitLabel !== '' ? $unitLabel : ('Unit #' . $item['unit_barang_id']);
+
         if (intval($unit['id_gudang'] ?? 0) !== $gudangAsalId) {
-            throw new Exception('Unit asset ' . ($unit['serial_number'] ?? ('#' . $item['unit_barang_id'])) . ' tidak berada di gudang asal.');
+            throw new Exception('Unit asset ' . $unitLabel . ' tidak berada di gudang asal.');
         }
 
         if (!empty($unit['id_user'])) {
-            throw new Exception('Unit asset ' . ($unit['serial_number'] ?? ('#' . $item['unit_barang_id'])) . ' masih terhubung ke user lain.');
+            throw new Exception('Unit asset ' . $unitLabel . ' masih terhubung ke user lain.');
         }
 
         $statusSaatIni = normalize_asset_unit_status($unit['status'] ?? null);
         if ($statusSaatIni !== 'tersedia') {
-            throw new Exception('Unit asset ' . ($unit['serial_number'] ?? ('#' . $item['unit_barang_id'])) . ' tidak dalam status tersedia.');
+            throw new Exception('Unit asset ' . $unitLabel . ' tidak dalam status tersedia.');
         }
 
         $updateStmt = $koneksi->prepare(
@@ -301,7 +306,7 @@ try {
             'id_user_changed' => $createdBy,
         ]);
 
-        save_histori_log_entry($koneksi, [
+        save_official_histori_log_entry($koneksi, [
             'ref_type' => 'handover',
             'ref_id' => $serahTerimaId,
             'event_type' => 'handover_asset_aktif',
@@ -311,7 +316,7 @@ try {
             'user_name_snapshot' => $createdByName,
             'target_user_id' => $pihakPenerimaUserId,
             'target_user_name_snapshot' => $pihakPenerimaNama,
-            'deskripsi' => 'Serah terima asset ' . ($produk['nama_produk'] ?? 'Asset') . ' unit ' . ($unit['serial_number'] ?? ('#' . $item['unit_barang_id'])),
+            'deskripsi' => 'Serah terima asset ' . ($produk['nama_produk'] ?? 'Asset') . ' unit ' . $unitLabel,
             'meta_json' => [
                 'kode_serah_terima' => $kodeSerahTerima,
                 'jenis_tujuan' => $jenisTujuan,
@@ -321,7 +326,7 @@ try {
         ]);
     }
 
-    save_histori_log_entry($koneksi, [
+    save_official_histori_log_entry($koneksi, [
         'ref_type' => 'handover',
         'ref_id' => $serahTerimaId,
         'event_type' => 'handover_dibuat',

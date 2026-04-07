@@ -1,5 +1,6 @@
 <?php
 include '../koneksi/koneksi.php';
+require_once __DIR__ . '/simpan_histori_log.php';
 
 require_auth_roles(['admin', 'petugas'], [
     'response' => 'page',
@@ -49,6 +50,7 @@ if (empty($details)) {
 }
 
 $gudangAsalId = isset($header['gudang_asal_id']) ? intval($header['gudang_asal_id']) : null;
+ensure_histori_log_table($koneksi);
 $koneksi->begin_transaction();
 
 try {
@@ -120,7 +122,7 @@ try {
             }
         }
 
-        save_histori_log_entry($koneksi, [
+        save_official_histori_log_entry($koneksi, [
             'ref_type' => 'handover',
             'ref_id' => $serahTerimaId,
             'event_type' => 'handover_detail_dikembalikan',
@@ -155,7 +157,7 @@ try {
         throw new Exception('Status serah terima gagal diperbarui.');
     }
 
-    save_histori_log_entry($koneksi, [
+    save_official_histori_log_entry($koneksi, [
         'ref_type' => 'handover',
         'ref_id' => $serahTerimaId,
         'event_type' => 'handover_dikembalikan',

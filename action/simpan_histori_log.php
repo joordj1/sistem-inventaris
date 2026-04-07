@@ -1,5 +1,67 @@
 <?php
-include '../koneksi/koneksi.php';
+
+if (!function_exists('ensure_histori_log_table')) {
+    function ensure_histori_log_table($koneksi) {
+        if (!isset($koneksi) || !$koneksi) {
+            return false;
+        }
+
+        if (function_exists('schema_table_exists_now') && schema_table_exists_now($koneksi, 'histori_log')) {
+            return true;
+        }
+
+        $sql = "CREATE TABLE IF NOT EXISTS histori_log (
+                    id INT(11) NOT NULL AUTO_INCREMENT,
+                    ref_type VARCHAR(50) NOT NULL,
+                    ref_id INT(11) NOT NULL,
+                    event_type VARCHAR(100) NOT NULL,
+                    produk_id INT(11) DEFAULT NULL,
+                    unit_barang_id INT(11) DEFAULT NULL,
+                    gudang_id INT(11) DEFAULT NULL,
+                    user_id INT(11) DEFAULT NULL,
+                    user_name_snapshot VARCHAR(255) NOT NULL,
+                    target_user_id INT(11) DEFAULT NULL,
+                    target_user_name_snapshot VARCHAR(255) DEFAULT NULL,
+                    deskripsi TEXT DEFAULT NULL,
+                    meta_json LONGTEXT DEFAULT NULL,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (id),
+                    KEY idx_histori_ref (ref_type, ref_id),
+                    KEY idx_histori_produk (produk_id),
+                    KEY idx_histori_unit (unit_barang_id),
+                    KEY idx_histori_gudang (gudang_id),
+                    KEY idx_histori_user (user_id),
+                    KEY idx_histori_created (created_at)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci";
+
+        if (!$koneksi->query($sql)) {
+            return false;
+        }
+
+        return !function_exists('schema_table_exists_now') || schema_table_exists_now($koneksi, 'histori_log');
+    }
+}
+
+if (!function_exists('save_official_histori_log_entry')) {
+    function save_official_histori_log_entry($koneksi, array $data) {
+        if (!ensure_histori_log_table($koneksi)) {
+            return false;
+        }
+
+        if (!function_exists('save_histori_log_entry')) {
+            return false;
+        }
+
+        return save_histori_log_entry($koneksi, $data);
+    }
+}
+
+$isDirectRequest = realpath($_SERVER['SCRIPT_FILENAME'] ?? '') === __FILE__;
+if (!$isDirectRequest) {
+    return;
+}
+
+require_once __DIR__ . '/../koneksi/koneksi.php';
 
 require_auth_roles(['admin', 'petugas'], [
     'response' => 'json',
@@ -15,7 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-$saved = save_histori_log_entry($koneksi, [
+$saved = save_official_histori_log_entry($koneksi, [
     'ref_type' => $_POST['ref_type'] ?? null,
     'ref_id' => $_POST['ref_id'] ?? null,
     'event_type' => $_POST['event_type'] ?? null,

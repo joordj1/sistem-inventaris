@@ -1,5 +1,6 @@
 <?php
 include '../koneksi/koneksi.php';
+require_once __DIR__ . '/simpan_histori_log.php';
 require_auth_roles(['admin', 'petugas'], [
     'response' => 'json',
     'login_redirect' => '../login.php',
@@ -95,6 +96,8 @@ foreach ($fields as $field => $value) {
     $previewUnit[$field] = $value;
 }
 $new_location = get_asset_unit_location_text($koneksi, $previewUnit);
+$unitLabel = trim((string) ($unit['kode_unit'] ?? ''));
+$unitLabel = $unitLabel !== '' ? $unitLabel : ('Unit #' . $id_unit);
 
 if (($old_location ?? '') === ($new_location ?? '')) {
     http_response_code(400);
@@ -102,6 +105,7 @@ if (($old_location ?? '') === ($new_location ?? '')) {
     exit;
 }
 
+ensure_histori_log_table($koneksi);
 $koneksi->begin_transaction();
 try {
     $updated = update_unit_barang($koneksi, $id_unit, $fields);
@@ -132,7 +136,7 @@ try {
         'action_name' => 'unit_pindah',
         'entity_type' => 'unit',
         'entity_id' => $id_unit,
-        'entity_label' => $unit['kode_unit'] ?? $unit['serial_number'] ?? ('Unit #' . $id_unit),
+        'entity_label' => $unitLabel,
         'description' => 'Memindahkan lokasi unit asset',
         'id_produk' => $unit['id_produk'],
         'id_unit_barang' => $id_unit,
@@ -144,7 +148,7 @@ try {
         ],
     ]);
 
-    save_histori_log_entry($koneksi, [
+    save_official_histori_log_entry($koneksi, [
         'ref_type' => 'unit',
         'ref_id' => $id_unit,
         'event_type' => 'lokasi_internal_diubah',

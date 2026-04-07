@@ -32,9 +32,11 @@ if ($selectedGudangAsal > 0) {
 
 $assetRows = [];
 if ($selectedGudangAsal > 0 && schema_table_exists_now($koneksi, 'unit_barang')) {
-    $sql = "SELECT ub.id_unit_barang, ub.serial_number, ub.kondisi, p.id_produk, p.kode_produk, p.nama_produk
+    $sql = "SELECT ub.id_unit_barang, ub.kode_unit, ub.status, ub.kondisi, ub.id_gudang, g.nama_gudang,
+                   p.id_produk, p.kode_produk, p.nama_produk
             FROM unit_barang ub
             INNER JOIN produk p ON ub.id_produk = p.id_produk
+            LEFT JOIN gudang g ON ub.id_gudang = g.id_gudang
             WHERE ub.id_gudang = " . intval($selectedGudangAsal) . "
               AND COALESCE(p.tipe_barang, 'consumable') = 'asset'
               AND COALESCE(ub.id_user, 0) = 0
@@ -167,6 +169,8 @@ if ($selectedGudangAsal > 0 && schema_table_exists_now($koneksi, 'unit_barang'))
                             <th>Pilih</th>
                             <th>Unit</th>
                             <th>Produk</th>
+                            <th>Gudang</th>
+                            <th>Status</th>
                             <th>Kondisi Sebelum</th>
                             <th>Kondisi Sesudah</th>
                             <th>Catatan Detail</th>
@@ -179,8 +183,14 @@ if ($selectedGudangAsal > 0 && schema_table_exists_now($koneksi, 'unit_barang'))
                                 <td class="text-center">
                                     <input type="checkbox" name="asset_unit_barang_id[]" value="<?= intval($row['id_unit_barang']) ?>">
                                 </td>
-                                <td><?= htmlspecialchars($row['serial_number'] ?? ('Unit #' . $row['id_unit_barang'])) ?></td>
+                                <td>
+                                    <?php $unitLabel = trim((string) ($row['kode_unit'] ?? '')); ?>
+                                    <?= htmlspecialchars($unitLabel !== '' ? $unitLabel : ('Unit #' . $row['id_unit_barang'])) ?><br>
+                                    <span class="text-muted">ID: <?= intval($row['id_unit_barang']) ?></span>
+                                </td>
                                 <td><?= htmlspecialchars(($row['kode_produk'] ?? '-') . ' - ' . ($row['nama_produk'] ?? '-')) ?></td>
+                                <td><?= htmlspecialchars($row['nama_gudang'] ?? ('Gudang #' . intval($row['id_gudang'] ?? 0))) ?></td>
+                                <td><?= htmlspecialchars(get_asset_unit_status_label($row['status'] ?? null)) ?></td>
                                 <td><?= htmlspecialchars($row['kondisi'] ?? '-') ?></td>
                                 <td>
                                     <select name="asset_kondisi_sesudah[<?= intval($row['id_unit_barang']) ?>]" class="form-select">
@@ -198,7 +208,7 @@ if ($selectedGudangAsal > 0 && schema_table_exists_now($koneksi, 'unit_barang'))
                             <?php endforeach; ?>
                         <?php else: ?>
                         <tr>
-                            <td colspan="6" class="text-center">Tidak ada unit asset tersedia di gudang asal.</td>
+                            <td colspan="8" class="text-center">Tidak ada unit asset tersedia di gudang asal.</td>
                         </tr>
                         <?php endif; ?>
                     </tbody>
