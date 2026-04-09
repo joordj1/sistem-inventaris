@@ -64,6 +64,64 @@ function normalize_edit_optional_text($value) {
     return $value === '' ? null : $value;
 }
 
+function build_edit_produk_assignment_sql($koneksi, $id_gudang, $lokasi_custom, $id_user) {
+    $assignments = [];
+    $assignments[] = "id_gudang = " . ($id_gudang !== null ? intval($id_gudang) : "NULL");
+
+    if ($lokasi_custom !== null) {
+        $assignments[] = "lokasi_custom = '" . $koneksi->real_escape_string($lokasi_custom) . "'";
+    } else {
+        $assignments[] = "lokasi_custom = NULL";
+    }
+
+    $assignments[] = "id_user = " . ($id_user !== null ? intval($id_user) : "NULL");
+
+    return implode(', ', $assignments);
+}
+
+function sync_edit_produk_stok_gudang($koneksi, $id_produk, $id_gudang) {
+    $id_produk = intval($id_produk);
+    $tableCheck = $koneksi->query("SHOW TABLES LIKE 'StokGudang'");
+
+    if ($id_produk < 1 || !$tableCheck || intval($tableCheck->num_rows) === 0) {
+        return;
+    }
+
+    if ($id_gudang === null) {
+        $stmtDelete = $koneksi->prepare("DELETE FROM StokGudang WHERE id_produk = ?");
+        if ($stmtDelete) {
+            $stmtDelete->bind_param('i', $id_produk);
+            $stmtDelete->execute();
+        }
+        return;
+    }
+
+    $id_gudang = intval($id_gudang);
+    $stmtCheck = $koneksi->prepare("SELECT 1 FROM StokGudang WHERE id_produk = ? LIMIT 1");
+    if (!$stmtCheck) {
+        return;
+    }
+
+    $stmtCheck->bind_param('i', $id_produk);
+    $stmtCheck->execute();
+    $hasRow = $stmtCheck->get_result()->num_rows > 0;
+
+    if ($hasRow) {
+        $stmtUpdate = $koneksi->prepare("UPDATE StokGudang SET id_gudang = ? WHERE id_produk = ?");
+        if ($stmtUpdate) {
+            $stmtUpdate->bind_param('ii', $id_gudang, $id_produk);
+            $stmtUpdate->execute();
+        }
+        return;
+    }
+
+    $stmtInsert = $koneksi->prepare("INSERT INTO StokGudang (id_produk, id_gudang, jumlah_stok) VALUES (?, ?, 0)");
+    if ($stmtInsert) {
+        $stmtInsert->bind_param('ii', $id_produk, $id_gudang);
+        $stmtInsert->execute();
+    }
+}
+
 function map_asset_status_to_product_status($value) {
     static $statusMap = [
         'tersedia' => 'tersedia',
@@ -189,7 +247,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $kondisi = normalize_edit_kondisi($_POST['kondisi'] ?? 'baik');
     $id_gudang = $_POST['id_gudang'] ? intval($_POST['id_gudang']) : null;
     $lokasi_custom = normalize_edit_optional_text($_POST['lokasi_custom'] ?? null);
-    $id_user = $_POST['id_user'] ?? null;
+    $id_user = filter_var($_POST['id_user'] ?? null, FILTER_VALIDATE_INT, [
+        'options' => ['min_range' => 1]
+    ]);
+    if ($id_user === false) {
+        $id_user = null;
+    }
     $operator = $_SESSION['id_user'] ?? null;
 
     $produk_before = $koneksi->query("SELECT status,kondisi,id_gudang,lokasi_custom,id_user FROM produk WHERE id_produk = '$id_produk'")->fetch_assoc();
@@ -233,37 +296,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $koneksi->begin_transaction();
 
                 // Update data produk tanpa menyentuh serial unit.
-                $query_update = "UPDATE produk SET kode_produk = '$kode_produk', nama_produk = '$nama_produk', deskripsi = $deskripsi_sql, id_kategori = '$id_kategori', jumlah_stok = '$jumlah_stok', satuan = '$satuan', harga_default = '$harga_satuan', harga_satuan = '$harga_satuan', total_nilai = '$total_nilai', gambar_produk = '$gambar_produk', status = '$status', kondisi = '$kondisi', tersedia = 1, tipe_barang = '$tipe_barang'";
-                if ($tipe_barang === 'asset') {
-                    $query_update .= ", id_gudang = " . ($id_gudang !== null ? $id_gudang : "NULL");
-                    if ($lokasi_custom !== null) {
-                        $lokasi_custom_escaped = $koneksi->real_escape_string($lokasi_custom);
-                        $query_update .= ", lokasi_custom = '$lokasi_custom_escaped'";
-                    } else {
-                        $query_update .= ", lokasi_custom = NULL";
-                    }
-                } else {
-                    if ($id_gudang) {
-                        $query_update .= ", id_gudang = $id_gudang, lokasi_custom = NULL";
-                    }
-                }
-                if ($lokasi_custom !== null && $tipe_barang !== 'asset') {
-                    $lokasi_custom_escaped = $koneksi->real_escape_string($lokasi_custom);
-                    $query_update .= ", lokasi_custom = '$lokasi_custom_escaped'";
-                }
-                if ($id_user) {
-                    $query_update .= ", id_user = $id_user";
-                }
+                $query_update = "UPDATE produk SET kode_produk = '$kode_produk', nama_produk = '$nama_produk', deskripsi = $deskripsi_sql, id_kategori = '$id_kategori', jumlah_stok = '$jumlah_stok', satuan = '$satuan', harga_default = '$harga_satuan', harga_satuan = '$harga_satuan', total_nilai = '$total_nilai', gambar_produk = '$gambar_produk', status = '$status', kondisi = '$kondisi', tersedia = 1, tipe_barang = '$tipe_barang', " . build_edit_produk_assignment_sql($koneksi, $id_gudang, $lokasi_custom, $id_user);
                 $query_update .= " WHERE id_produk = '$id_produk'";
-                $koneksi->query($query_update);
+                if (!$koneksi->query($query_update)) {
+                    throw new Exception($koneksi->error);
+                }
 
                 // Update data di StokGudang
-                if ($id_gudang !== null) {
-                    $query_update_gudang = "UPDATE StokGudang SET id_gudang = ? WHERE id_produk = ?";
-                    $stmt_update_gudang = $koneksi->prepare($query_update_gudang);
-                    $stmt_update_gudang->bind_param("ii", $id_gudang, $id_produk);
-                    $stmt_update_gudang->execute();
-                }
+                sync_edit_produk_stok_gudang($koneksi, $id_produk, $id_gudang);
 
                 if ($tipe_barang === 'asset') {
                     $assetSyncResult = sync_asset_units_for_product($koneksi, [
@@ -318,37 +358,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $koneksi->begin_transaction();
 
             // Update data produk tanpa gambar (unit asset tidak disinkronkan dengan kode produk baru)
-            $query_update = "UPDATE produk SET kode_produk = '$kode_produk', nama_produk = '$nama_produk', deskripsi = $deskripsi_sql, id_kategori = '$id_kategori', jumlah_stok = '$jumlah_stok', satuan = '$satuan', harga_default = '$harga_satuan', harga_satuan = '$harga_satuan', total_nilai = '$total_nilai', status = '$status', kondisi = '$kondisi', tersedia = 1, tipe_barang = '$tipe_barang'";
-            if ($tipe_barang === 'asset') {
-                $query_update .= ", id_gudang = " . ($id_gudang !== null ? $id_gudang : "NULL");
-                if ($lokasi_custom !== null) {
-                    $lokasi_custom_escaped = $koneksi->real_escape_string($lokasi_custom);
-                    $query_update .= ", lokasi_custom = '$lokasi_custom_escaped'";
-                } else {
-                    $query_update .= ", lokasi_custom = NULL";
-                }
-            } else {
-                if ($id_gudang) {
-                    $query_update .= ", id_gudang = $id_gudang, lokasi_custom = NULL";
-                }
-            }
-            if ($lokasi_custom !== null && $tipe_barang !== 'asset') {
-                $lokasi_custom_escaped = $koneksi->real_escape_string($lokasi_custom);
-                $query_update .= ", lokasi_custom = '$lokasi_custom_escaped'";
-            }
-            if ($id_user) {
-                $query_update .= ", id_user = $id_user";
-            }
+            $query_update = "UPDATE produk SET kode_produk = '$kode_produk', nama_produk = '$nama_produk', deskripsi = $deskripsi_sql, id_kategori = '$id_kategori', jumlah_stok = '$jumlah_stok', satuan = '$satuan', harga_default = '$harga_satuan', harga_satuan = '$harga_satuan', total_nilai = '$total_nilai', status = '$status', kondisi = '$kondisi', tersedia = 1, tipe_barang = '$tipe_barang', " . build_edit_produk_assignment_sql($koneksi, $id_gudang, $lokasi_custom, $id_user);
             $query_update .= " WHERE id_produk = '$id_produk'";
-            $koneksi->query($query_update);
+            if (!$koneksi->query($query_update)) {
+                throw new Exception($koneksi->error);
+            }
 
             // Update data di StokGudang
-            if ($id_gudang !== null) {
-                $query_update_gudang = "UPDATE StokGudang SET id_gudang = ? WHERE id_produk = ?";
-                $stmt_update_gudang = $koneksi->prepare($query_update_gudang);
-                $stmt_update_gudang->bind_param("ii", $id_gudang, $id_produk);
-                $stmt_update_gudang->execute();
-            }
+            sync_edit_produk_stok_gudang($koneksi, $id_produk, $id_gudang);
 
             if ($tipe_barang === 'asset') {
                 $assetSyncResult = sync_asset_units_for_product($koneksi, [

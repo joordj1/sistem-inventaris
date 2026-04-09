@@ -155,7 +155,8 @@ $query = "SELECT produk.id_produk, produk.kode_produk, produk.nama_produk, kateg
     } else {
         $trackingActorSnapshotCol = schema_find_existing_column($koneksi, 'tracking_barang', ['actor_name_snapshot', 'actor_nama_snapshot', 'user_name_snapshot']);
         $sqlHistory = "SELECT tb.*, " . ($trackingActorSnapshotCol !== null ? "tb.`$trackingActorSnapshotCol`" : "NULL") . " AS actor_name_snapshot,
-                              u.nama AS id_user_changed_name, uc.nama AS user_name FROM tracking_barang tb
+                      COALESCE(NULLIF(u.nama, ''), NULLIF(u.username, '')) AS changed_by,
+                      uc.nama AS user_name FROM tracking_barang tb
                        LEFT JOIN user u ON tb.id_user_changed = u.id_user
                        LEFT JOIN user uc ON tb.id_user_sesudah = uc.id_user
                        WHERE tb.id_produk = ? ORDER BY tb.changed_at DESC";
@@ -246,7 +247,7 @@ $query = "SELECT produk.id_produk, produk.kode_produk, produk.nama_produk, kateg
             <div class="col-12">
                 <h4>Aksi Tracking</h4>
                 <?php if (!$canManageInventory): ?>
-                <div class="alert alert-secondary">Role `viewer` hanya dapat melihat detail dan riwayat tracking.</div>
+                <div class="alert alert-secondary">Role `user` hanya dapat melihat detail dan riwayat tracking.</div>
                 <?php else: ?>
                 <form action="action/update_tracking.php" method="post">
                     <input type="hidden" name="id_produk" value="<?= $data['id_produk'] ?>">
@@ -473,7 +474,7 @@ $query = "SELECT produk.id_produk, produk.kode_produk, produk.nama_produk, kateg
                                 <?php
                                 $activityLabel = resolveTrackingActivityDisplay($t);
                                 $displayNote = resolveTrackingNoteDisplay($t, $isAsset ? 'unit' : 'barang');
-                                $displayActor = resolveTrackingActorDisplay($t, $isAsset ? 'nama_user_actor' : 'id_user_changed_name');
+                                $displayActor = resolveTrackingActorDisplay($t, $isAsset ? 'nama_user_actor' : 'changed_by');
                                 $displayUser = trim((string) ($t['user_name'] ?? '')) !== '' ? $t['user_name'] : '-';
                                 ?>
                                 <tr>

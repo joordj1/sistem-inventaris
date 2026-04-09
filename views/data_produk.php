@@ -57,36 +57,14 @@ function getAssetLocationMap($koneksi) {
 }
 
 function resolveProductLocation($row, $assetLocationMap) {
-    $tipeBarang = strtolower(trim((string) ($row['tipe_barang'] ?? 'consumable')));
-
-    if ($tipeBarang === 'asset') {
-        $assetDetailLocation = $assetLocationMap[(int) ($row['id_produk'] ?? 0)] ?? null;
-        $assetDetailLocation = normalizeProductLocationValue($assetDetailLocation);
-        if ($assetDetailLocation !== null) {
-            return $assetDetailLocation;
-        }
-
-        $masterCustomLocation = normalizeProductLocationValue($row['produk_lokasi_custom'] ?? null);
-        if ($masterCustomLocation !== null) {
-            return $masterCustomLocation;
-        }
-
-        $masterGudang = normalizeProductLocationValue($row['nama_gudang_master'] ?? null);
-        if ($masterGudang !== null) {
-            return $masterGudang;
-        }
-
-        return 'Tidak Memiliki Lokasi';
+    $masterGudang = normalizeProductLocationValue($row['nama_gudang_master'] ?? null);
+    if ($masterGudang !== null) {
+        return $masterGudang;
     }
 
     $stokGudang = normalizeProductLocationValue($row['nama_gudang_stok'] ?? null);
     if ($stokGudang !== null) {
         return $stokGudang;
-    }
-
-    $customLocation = normalizeProductLocationValue($row['produk_lokasi_custom'] ?? null);
-    if ($customLocation !== null) {
-        return $customLocation;
     }
 
     return 'Tidak Memiliki Lokasi';

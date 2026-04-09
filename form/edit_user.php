@@ -22,18 +22,33 @@ if ($id_user) {
     exit;
 }
 
+$bidangRows = get_active_bidang_rows($koneksi, true);
+
 // Proses submit form
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $nama = trim((string) ($_POST['nama'] ?? ''));
     $username = trim((string) ($_POST['username'] ?? ''));
-    $password = !empty($_POST['password']) ? md5($_POST['password']) : $data['password'];
-    $email = trim((string) ($_POST['email'] ?? ''));
+    $password = !empty($_POST['password']) ? hash_inventory_password($_POST['password']) : $data['password'];
     $role = normalize_user_role($_POST['role'] ?? null);
+    $status = normalize_user_status($_POST['status'] ?? ($data['status'] ?? 'aktif'));
+    $kategoriUser = normalize_user_category($_POST['kategori_user'] ?? ($data['kategori_user'] ?? 'umum'));
+    $bidangId = nullable_int_id($_POST['bidang_id'] ?? null);
+
+    if ($kategoriUser === 'staff' && $bidangId === null) {
+        echo "Bidang wajib dipilih untuk kategori staff.";
+        exit;
+    }
+
+    if ($kategoriUser !== 'staff') {
+        $bidangId = null;
+    }
+
+    if ($bidangId !== null && !inventory_bidang_exists($koneksi, $bidangId, true)) {
+        echo "Bidang yang dipilih tidak valid.";
+        exit;
+    }
 
     $duplicateSql = "SELECT id_user FROM user WHERE username = ? AND id_user != ?";
-    if (schema_has_column_now($koneksi, 'user', 'deleted_at')) {
-        $duplicateSql .= " AND deleted_at IS NULL";
-    }
     $stmtCheck = $koneksi->prepare($duplicateSql);
     $stmtCheck->bind_param('si', $username, $id_user);
     $stmtCheck->execute();
@@ -54,15 +69,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    $updateSql = "UPDATE user SET nama = ?, username = ?, password = ?, email = ?, role = ?";
-    if (schema_has_column_now($koneksi, 'user', 'updated_at')) {
-        $updateSql .= ", updated_at = NOW()";
+    $updateSql = "UPDATE user SET nama = ?, username = ?, password = ?, role = ?, status = ?, kategori_user = ?, bidang_id = ?";
+    if (schema_has_column_now($koneksi, 'user', 'deleted_at')) {
+        $updateSql .= ", deleted_at = " . ($status === 'nonaktif' ? 'NOW()' : 'NULL');
     }
+    $updateSql .= ", updated_at = NOW()";
     $updateSql .= " WHERE id_user = ?";
     $stmtUpdate = $koneksi->prepare($updateSql);
-    $stmtUpdate->bind_param('sssssi', $nama, $username, $password, $email, $role, $id_user);
+    $stmtUpdate->bind_param('ssssssii', $nama, $username, $password, $role, $status, $kategoriUser, $bidangId, $id_user);
 
     if ($stmtUpdate->execute()) {
+        $actionName = ($status === 'nonaktif' && normalize_user_status($data['status'] ?? 'aktif') !== 'nonaktif') ? 'user_deactivate' : 'user_update';
+        log_activity($koneksi, [
+            'id_user' => current_user_id(),
+            'role_user' => get_current_user_role(),
+            'action_name' => $actionName,
+            'entity_type' => 'user',
+            'entity_id' => $id_user,
+            'entity_label' => $nama . ' (' . $username . ')',
+            'description' => $actionName === 'user_deactivate' ? 'Menonaktifkan user internal.' : 'Memperbarui data user internal.',
+            'metadata_json' => [
+                'old_role' => normalize_user_role($data['role'] ?? null),
+                'new_role' => $role,
+                'old_status' => normalize_user_status($data['status'] ?? 'aktif'),
+                'new_status' => $status,
+                'old_kategori_user' => normalize_user_category($data['kategori_user'] ?? 'umum'),
+                'new_kategori_user' => $kategoriUser,
+                'old_bidang_id' => nullable_int_id($data['bidang_id'] ?? null),
+                'new_bidang_id' => $bidangId,
+                'old_bidang_nama' => get_bidang_name_by_id($koneksi, $data['bidang_id'] ?? null),
+                'new_bidang_nama' => get_bidang_name_by_id($koneksi, $bidangId),
+            ],
+        ]);
+
+        if (!empty($_SESSION['id_user']) && intval($_SESSION['id_user']) === $id_user) {
+            $_SESSION['username'] = $username;
+            $_SESSION['nama'] = $nama;
+            $_SESSION['role'] = $role;
+            $_SESSION['status'] = $status;
+            $_SESSION['kategori_user'] = $kategoriUser;
+            $_SESSION['bidang_id'] = $bidangId;
+        }
+
         header('Location: index.php?page=user');
         exit;
     } else {
@@ -97,15 +145,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <input type="password" class="form-control" id="password" name="password" placeholder="Masukkan password baru (kosongkan jika tidak diubah)">
         </div>
         <div class="mb-3">
-            <label for="email" class="form-label">Email</label>
-            <input type="email" class="form-control" id="email" name="email" value="<?= $data['email']; ?>" required>
-        </div>
-        <div class="mb-3">
             <label for="role" class="form-label">Role</label>
             <select class="form-select" id="role" name="role" required>
                 <option value="admin" <?= (normalize_user_role($data['role']) === 'admin') ? 'selected' : ''; ?>>Admin</option>
                 <option value="petugas" <?= (normalize_user_role($data['role']) === 'petugas') ? 'selected' : ''; ?>>Petugas</option>
-                <option value="viewer" <?= (normalize_user_role($data['role']) === 'viewer') ? 'selected' : ''; ?>>Viewer</option>
+                <option value="user" <?= (normalize_user_role($data['role']) === 'user') ? 'selected' : ''; ?>>User</option>
+            </select>
+        </div>
+        <div class="mb-3">
+            <label for="status" class="form-label">Status</label>
+            <select class="form-select" id="status" name="status" required>
+                <option value="aktif" <?= (normalize_user_status($data['status'] ?? 'aktif') === 'aktif') ? 'selected' : ''; ?>>Aktif</option>
+                <option value="nonaktif" <?= (normalize_user_status($data['status'] ?? 'aktif') === 'nonaktif') ? 'selected' : ''; ?>>Nonaktif</option>
+            </select>
+        </div>
+        <div class="mb-3">
+            <label for="kategori_user" class="form-label">Kategori User</label>
+            <select class="form-select" id="kategori_user" name="kategori_user" required>
+                <option value="staff" <?= (normalize_user_category($data['kategori_user'] ?? 'umum') === 'staff') ? 'selected' : ''; ?>>Staff</option>
+                <option value="dosen" <?= (normalize_user_category($data['kategori_user'] ?? 'umum') === 'dosen') ? 'selected' : ''; ?>>Dosen</option>
+                <option value="mahasiswa" <?= (normalize_user_category($data['kategori_user'] ?? 'umum') === 'mahasiswa') ? 'selected' : ''; ?>>Mahasiswa</option>
+                <option value="umum" <?= (normalize_user_category($data['kategori_user'] ?? 'umum') === 'umum') ? 'selected' : ''; ?>>Umum</option>
+            </select>
+        </div>
+        <div class="mb-3" id="bidang-wrapper">
+            <label for="bidang_id" class="form-label">Bidang / Divisi</label>
+            <select class="form-select" id="bidang_id" name="bidang_id">
+                <option value="">--Pilih Bidang--</option>
+                <?php foreach ($bidangRows as $bidang): ?>
+                    <option value="<?= intval($bidang['id']) ?>" <?= (intval($data['bidang_id'] ?? 0) === intval($bidang['id'])) ? 'selected' : ''; ?>><?= htmlspecialchars($bidang['nama_bidang']) ?></option>
+                <?php endforeach; ?>
             </select>
         </div>
         <div class="d-flex justify-content-between">
@@ -114,3 +183,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
     </form>
 </div>
+
+<script>
+function toggleBidangEditUserForm() {
+    const kategoriField = document.getElementById('kategori_user');
+    const bidangWrapper = document.getElementById('bidang-wrapper');
+    const bidangField = document.getElementById('bidang_id');
+    const isStaff = kategoriField.value === 'staff';
+
+    bidangWrapper.style.display = isStaff ? '' : 'none';
+    bidangField.required = isStaff;
+    if (!isStaff) {
+        bidangField.value = '';
+    }
+}
+
+document.getElementById('kategori_user').addEventListener('change', toggleBidangEditUserForm);
+toggleBidangEditUserForm();
+</script>

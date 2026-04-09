@@ -25,12 +25,42 @@ function normalize_user_role($role) {
         'admin' => 'admin',
         'petugas' => 'petugas',
         'leader' => 'petugas',
-        'user' => 'petugas',
         'operator' => 'petugas',
-        'viewer' => 'viewer',
+        'viewer' => 'user',
+        'user' => 'user',
     ];
 
-    return $map[$role] ?? 'viewer';
+    return $map[$role] ?? 'user';
+}
+
+function normalize_user_status($status) {
+    $status = strtolower(trim((string) ($status ?? '')));
+    $map = [
+        'aktif' => 'aktif',
+        'active' => 'aktif',
+        'nonaktif' => 'nonaktif',
+        'inactive' => 'nonaktif',
+        'disabled' => 'nonaktif',
+        'deleted' => 'nonaktif',
+    ];
+
+    return $map[$status] ?? 'aktif';
+}
+
+function normalize_user_category($category) {
+    $category = strtolower(trim((string) ($category ?? '')));
+    $map = [
+        'staff' => 'staff',
+        'pegawai' => 'staff',
+        'dosen' => 'dosen',
+        'lecturer' => 'dosen',
+        'mahasiswa' => 'mahasiswa',
+        'student' => 'mahasiswa',
+        'umum' => 'umum',
+        'public' => 'umum',
+    ];
+
+    return $map[$category] ?? 'umum';
 }
 
 function get_current_user_role() {
@@ -64,6 +94,10 @@ function inventory_user_can_manage() {
 
 function inventory_user_is_admin() {
     return current_user_has_role('admin');
+}
+
+function inventory_user_is_view_only() {
+    return current_user_has_role('user');
 }
 
 function require_auth_roles($roles, $options = []) {
@@ -120,6 +154,52 @@ function schema_has_column_now($koneksi, $tableName, $columnName) {
     return (bool) ($result && $result->num_rows > 0);
 }
 
+function schema_index_exists_now($koneksi, $tableName, $indexName) {
+    if (!schema_table_exists_now($koneksi, $tableName)) {
+        return false;
+    }
+
+    $safeTableName = $koneksi->real_escape_string($tableName);
+    $safeIndexName = $koneksi->real_escape_string($indexName);
+    $result = $koneksi->query("SHOW INDEX FROM `$safeTableName` WHERE Key_name = '$safeIndexName'");
+    return (bool) ($result && $result->num_rows > 0);
+}
+
+function schema_has_unique_index_now($koneksi, $tableName, $columnName) {
+    if (!schema_table_exists_now($koneksi, $tableName)) {
+        return false;
+    }
+
+    $safeTableName = $koneksi->real_escape_string($tableName);
+    $safeColumnName = $koneksi->real_escape_string($columnName);
+    $result = $koneksi->query("SHOW INDEX FROM `$safeTableName` WHERE Column_name = '$safeColumnName'");
+    if (!$result) {
+        return false;
+    }
+
+    while ($row = $result->fetch_assoc()) {
+        if ((int) ($row['Non_unique'] ?? 1) === 0) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function schema_foreign_key_exists_now($koneksi, $tableName, $constraintName) {
+    $safeTableName = $koneksi->real_escape_string($tableName);
+    $safeConstraintName = $koneksi->real_escape_string($constraintName);
+    $sql = "SELECT 1
+            FROM information_schema.TABLE_CONSTRAINTS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = '$safeTableName'
+              AND CONSTRAINT_NAME = '$safeConstraintName'
+              AND CONSTRAINT_TYPE = 'FOREIGN KEY'
+            LIMIT 1";
+    $result = $koneksi->query($sql);
+    return (bool) ($result && $result->num_rows > 0);
+}
+
 function nullable_int_id($value) {
     if ($value === null || $value === '') {
         return null;
@@ -127,6 +207,106 @@ function nullable_int_id($value) {
 
     $value = intval($value);
     return $value > 0 ? $value : null;
+}
+
+function hash_inventory_password($password) {
+    return password_hash((string) $password, PASSWORD_DEFAULT);
+}
+
+function verify_inventory_password($password, $storedHash) {
+    $password = (string) $password;
+    $storedHash = (string) ($storedHash ?? '');
+    if ($password === '' || $storedHash === '') {
+        return false;
+    }
+
+    $hashInfo = password_get_info($storedHash);
+    if (!empty($hashInfo['algo'])) {
+        return password_verify($password, $storedHash);
+    }
+
+    if (preg_match('/^[a-f0-9]{32}$/i', $storedHash)) {
+        return hash_equals(strtolower($storedHash), md5($password));
+    }
+
+    return false;
+}
+
+function inventory_password_needs_upgrade($storedHash) {
+    $storedHash = (string) ($storedHash ?? '');
+    if ($storedHash === '') {
+        return false;
+    }
+
+    $hashInfo = password_get_info($storedHash);
+    if (!empty($hashInfo['algo'])) {
+        return password_needs_rehash($storedHash, PASSWORD_DEFAULT);
+    }
+
+    return preg_match('/^[a-f0-9]{32}$/i', $storedHash) === 1;
+}
+
+function get_active_bidang_rows($koneksi, $includeInactive = false) {
+    if (!schema_table_exists_now($koneksi, 'bidang')) {
+        return [];
+    }
+
+    $sql = "SELECT id, nama_bidang, kode_bidang, status FROM bidang WHERE 1 = 1";
+    if (!$includeInactive && schema_has_column_now($koneksi, 'bidang', 'status')) {
+        $sql .= " AND status = 'aktif'";
+    }
+    $sql .= " ORDER BY nama_bidang ASC";
+
+    $rows = [];
+    $result = $koneksi->query($sql);
+    if ($result) {
+        while ($row = $result->fetch_assoc()) {
+            $rows[] = $row;
+        }
+    }
+
+    return $rows;
+}
+
+function get_bidang_name_by_id($koneksi, $bidangId) {
+    $bidangId = nullable_int_id($bidangId);
+    if ($bidangId === null || !schema_table_exists_now($koneksi, 'bidang')) {
+        return null;
+    }
+
+    $stmt = $koneksi->prepare("SELECT nama_bidang FROM bidang WHERE id = ? LIMIT 1");
+    if (!$stmt) {
+        return null;
+    }
+
+    $stmt->bind_param('i', $bidangId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $row = $result ? $result->fetch_assoc() : null;
+    return $row['nama_bidang'] ?? null;
+}
+
+function inventory_bidang_exists($koneksi, $bidangId, $includeInactive = false) {
+    $bidangId = nullable_int_id($bidangId);
+    if ($bidangId === null || !schema_table_exists_now($koneksi, 'bidang')) {
+        return false;
+    }
+
+    $sql = "SELECT id FROM bidang WHERE id = ?";
+    if (!$includeInactive && schema_has_column_now($koneksi, 'bidang', 'status')) {
+        $sql .= " AND status = 'aktif'";
+    }
+    $sql .= " LIMIT 1";
+
+    $stmt = $koneksi->prepare($sql);
+    if (!$stmt) {
+        return false;
+    }
+
+    $stmt->bind_param('i', $bidangId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    return (bool) ($result && $result->num_rows > 0);
 }
 
 function normalize_tracking_activity_type($value, $fallback = 'update') {
@@ -277,7 +457,17 @@ function build_tracking_note_fallback($data, $scope = 'barang') {
 }
 
 function resolve_tracking_actor_id($data) {
-    return nullable_int_id($data['id_user_changed'] ?? ($data['actor_id'] ?? current_user_id()));
+    $actorId = nullable_int_id($data['id_user_changed'] ?? null);
+    if ($actorId !== null) {
+        return $actorId;
+    }
+
+    $actorId = nullable_int_id($data['actor_id'] ?? null);
+    if ($actorId !== null) {
+        return $actorId;
+    }
+
+    return current_user_id();
 }
 
 function resolve_tracking_actor_name_snapshot($koneksi, $data) {
@@ -1210,22 +1400,39 @@ function get_current_user_name($koneksi) {
 }
 
 function get_safe_user_filter_sql($koneksi, $alias = 'user') {
-    if (!schema_has_column_now($koneksi, 'user', 'deleted_at')) {
-        return '';
-    }
-
     $safeAlias = preg_replace('/[^A-Za-z0-9_]/', '', (string) $alias);
     if ($safeAlias === '') {
         $safeAlias = 'user';
     }
 
-    return " AND `$safeAlias`.deleted_at IS NULL";
+    $conditions = [];
+    if (schema_has_column_now($koneksi, 'user', 'deleted_at')) {
+        $conditions[] = "`$safeAlias`.deleted_at IS NULL";
+    }
+    if (schema_has_column_now($koneksi, 'user', 'status')) {
+        $conditions[] = "`$safeAlias`.status = 'aktif'";
+    }
+
+    return empty($conditions) ? '' : (' AND ' . implode(' AND ', $conditions));
 }
 
 function get_active_user_rows($koneksi) {
-    $sql = "SELECT id_user, nama, username, role FROM user WHERE 1 = 1";
+    $sql = "SELECT id_user, nama, username, role";
+    if (schema_has_column_now($koneksi, 'user', 'status')) {
+        $sql .= ", status";
+    }
+    if (schema_has_column_now($koneksi, 'user', 'kategori_user')) {
+        $sql .= ", kategori_user";
+    }
+    if (schema_has_column_now($koneksi, 'user', 'bidang_id')) {
+        $sql .= ", bidang_id";
+    }
+    $sql .= " FROM user WHERE 1 = 1";
     if (schema_has_column_now($koneksi, 'user', 'deleted_at')) {
         $sql .= " AND deleted_at IS NULL";
+    }
+    if (schema_has_column_now($koneksi, 'user', 'status')) {
+        $sql .= " AND status = 'aktif'";
     }
     $sql .= " ORDER BY nama ASC";
 
@@ -1505,7 +1712,12 @@ function soft_delete_inventory_user($koneksi, $id_user) {
         return false;
     }
 
-    $stmt = $koneksi->prepare("SELECT id_user, nama, username, email FROM user WHERE id_user = ? LIMIT 1");
+    $selectColumns = ['id_user', 'nama', 'username'];
+    if (schema_has_column_now($koneksi, 'user', 'email')) {
+        $selectColumns[] = 'email';
+    }
+
+    $stmt = $koneksi->prepare("SELECT " . implode(', ', $selectColumns) . " FROM user WHERE id_user = ? LIMIT 1");
     if (!$stmt) {
         return false;
     }
@@ -1528,9 +1740,21 @@ function soft_delete_inventory_user($koneksi, $id_user) {
 
     $deletedSuffix = '__deleted_' . $id_user . '_' . date('YmdHis');
     $newUsername = substr((string) $user['username'], 0, 180) . $deletedSuffix;
-    $newEmail = substr((string) $user['email'], 0, 180) . $deletedSuffix;
 
-    $setParts = ["deleted_at = NOW()", "username = ?", "email = ?"];
+    $setParts = ["deleted_at = NOW()", "username = ?"];
+    $bindTypes = 's';
+    $bindValues = [$newUsername];
+
+    if (schema_has_column_now($koneksi, 'user', 'email')) {
+        $newEmail = trim((string) ($user['email'] ?? ''));
+        $newEmail = $newEmail !== '' ? (substr($newEmail, 0, 180) . $deletedSuffix) : null;
+        $setParts[] = "email = ?";
+        $bindTypes .= 's';
+        $bindValues[] = $newEmail;
+    }
+    if (schema_has_column_now($koneksi, 'user', 'status')) {
+        $setParts[] = "status = 'nonaktif'";
+    }
     if (schema_has_column_now($koneksi, 'user', 'updated_at')) {
         $setParts[] = "updated_at = NOW()";
     }
@@ -1540,11 +1764,17 @@ function soft_delete_inventory_user($koneksi, $id_user) {
     if (!$updateStmt) {
         return false;
     }
-    $updateStmt->bind_param('ssi', $newUsername, $newEmail, $id_user);
+
+    if (schema_has_column_now($koneksi, 'user', 'email')) {
+        $newEmail = $bindValues[1] ?? null;
+        $updateStmt->bind_param('ssi', $newUsername, $newEmail, $id_user);
+    } else {
+        $updateStmt->bind_param('si', $newUsername, $id_user);
+    }
     return $updateStmt->execute();
 }
 
-function ensure_role_schema_compatibility($koneksi) {
+function ensure_user_management_schema($koneksi) {
     static $done = false;
 
     if ($done) {
@@ -1552,13 +1782,88 @@ function ensure_role_schema_compatibility($koneksi) {
     }
     $done = true;
 
-    if (!schema_table_exists_now($koneksi, 'user') || !schema_has_column_now($koneksi, 'user', 'role')) {
+    if (!schema_table_exists_now($koneksi, 'user')) {
         return;
     }
 
-    $koneksi->query("ALTER TABLE user MODIFY COLUMN role ENUM('admin','petugas','viewer','leader','user') NOT NULL DEFAULT 'viewer'");
-    $koneksi->query("UPDATE user SET role = 'petugas' WHERE role IN ('leader', 'user')");
-    $koneksi->query("ALTER TABLE user MODIFY COLUMN role ENUM('admin','petugas','viewer') NOT NULL DEFAULT 'viewer'");
+    $koneksi->query("CREATE TABLE IF NOT EXISTS bidang (
+        id INT NOT NULL AUTO_INCREMENT,
+        nama_bidang VARCHAR(150) NOT NULL,
+        kode_bidang VARCHAR(50) DEFAULT NULL,
+        status ENUM('aktif','nonaktif') NOT NULL DEFAULT 'aktif',
+        created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uniq_bidang_nama (nama_bidang),
+        UNIQUE KEY uniq_bidang_kode (kode_bidang)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
+
+    if (!schema_has_column_now($koneksi, 'user', 'created_at')) {
+        $koneksi->query("ALTER TABLE user ADD COLUMN created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP");
+    }
+    if (!schema_has_column_now($koneksi, 'user', 'updated_at')) {
+        $koneksi->query("ALTER TABLE user ADD COLUMN updated_at DATETIME NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at");
+    }
+    if (!schema_has_column_now($koneksi, 'user', 'deleted_at')) {
+        $koneksi->query("ALTER TABLE user ADD COLUMN deleted_at DATETIME NULL AFTER updated_at");
+    }
+    if (!schema_has_column_now($koneksi, 'user', 'status')) {
+        $koneksi->query("ALTER TABLE user ADD COLUMN status ENUM('aktif','nonaktif') NOT NULL DEFAULT 'aktif' AFTER role");
+    }
+    if (!schema_has_column_now($koneksi, 'user', 'kategori_user')) {
+        $koneksi->query("ALTER TABLE user ADD COLUMN kategori_user ENUM('staff','dosen','mahasiswa','umum') NOT NULL DEFAULT 'umum' AFTER status");
+    }
+    if (!schema_has_column_now($koneksi, 'user', 'bidang_id')) {
+        $koneksi->query("ALTER TABLE user ADD COLUMN bidang_id INT NULL AFTER kategori_user");
+    }
+
+    if (schema_has_column_now($koneksi, 'user', 'email')) {
+        $koneksi->query("ALTER TABLE user MODIFY COLUMN email VARCHAR(255) NULL DEFAULT NULL");
+    }
+
+    if (schema_has_column_now($koneksi, 'user', 'role')) {
+        $koneksi->query("ALTER TABLE user MODIFY COLUMN role VARCHAR(50) NOT NULL DEFAULT 'user'");
+        $koneksi->query("UPDATE user SET role = 'petugas' WHERE LOWER(TRIM(COALESCE(role, ''))) IN ('leader', 'operator')");
+        $koneksi->query("UPDATE user SET role = 'user' WHERE LOWER(TRIM(COALESCE(role, ''))) IN ('viewer', 'pemohon') OR role IS NULL OR TRIM(COALESCE(role, '')) = ''");
+        $koneksi->query("ALTER TABLE user MODIFY COLUMN role ENUM('admin','petugas','user') NOT NULL DEFAULT 'user'");
+    }
+
+    if (schema_has_column_now($koneksi, 'user', 'status')) {
+        $koneksi->query("ALTER TABLE user MODIFY COLUMN status VARCHAR(20) NOT NULL DEFAULT 'aktif'");
+        $koneksi->query("UPDATE user SET status = 'nonaktif' WHERE LOWER(TRIM(COALESCE(status, ''))) IN ('inactive', 'disabled', 'deleted')");
+        if (schema_has_column_now($koneksi, 'user', 'deleted_at')) {
+            $koneksi->query("UPDATE user SET status = 'nonaktif' WHERE deleted_at IS NOT NULL");
+        }
+        $koneksi->query("UPDATE user SET status = 'aktif' WHERE status IS NULL OR TRIM(COALESCE(status, '')) = ''");
+        $koneksi->query("ALTER TABLE user MODIFY COLUMN status ENUM('aktif','nonaktif') NOT NULL DEFAULT 'aktif'");
+    }
+
+    if (schema_has_column_now($koneksi, 'user', 'kategori_user')) {
+        $koneksi->query("ALTER TABLE user MODIFY COLUMN kategori_user VARCHAR(20) NOT NULL DEFAULT 'umum'");
+        $koneksi->query("UPDATE user SET kategori_user = 'staff' WHERE LOWER(TRIM(COALESCE(kategori_user, ''))) IN ('pegawai')");
+        $koneksi->query("UPDATE user SET kategori_user = 'dosen' WHERE LOWER(TRIM(COALESCE(kategori_user, ''))) IN ('lecturer')");
+        $koneksi->query("UPDATE user SET kategori_user = 'mahasiswa' WHERE LOWER(TRIM(COALESCE(kategori_user, ''))) IN ('student')");
+        $koneksi->query("UPDATE user SET kategori_user = 'umum' WHERE kategori_user IS NULL OR TRIM(COALESCE(kategori_user, '')) = ''");
+        $koneksi->query("ALTER TABLE user MODIFY COLUMN kategori_user ENUM('staff','dosen','mahasiswa','umum') NOT NULL DEFAULT 'umum'");
+    }
+
+    if (schema_has_column_now($koneksi, 'user', 'kategori_user') && schema_has_column_now($koneksi, 'user', 'bidang_id')) {
+        $koneksi->query("UPDATE user SET bidang_id = NULL WHERE kategori_user <> 'staff'");
+    }
+
+    if (!schema_has_unique_index_now($koneksi, 'user', 'username')) {
+        $koneksi->query("ALTER TABLE user ADD UNIQUE KEY uniq_user_username (username)");
+    }
+    if (!schema_index_exists_now($koneksi, 'user', 'idx_user_bidang_id')) {
+        $koneksi->query("ALTER TABLE user ADD KEY idx_user_bidang_id (bidang_id)");
+    }
+
+    if (schema_has_column_now($koneksi, 'user', 'bidang_id') && schema_table_exists_now($koneksi, 'bidang')) {
+        $koneksi->query("UPDATE user u LEFT JOIN bidang b ON u.bidang_id = b.id SET u.bidang_id = NULL WHERE u.bidang_id IS NOT NULL AND b.id IS NULL");
+        if (!schema_foreign_key_exists_now($koneksi, 'user', 'fk_user_bidang')) {
+            $koneksi->query("ALTER TABLE user ADD CONSTRAINT fk_user_bidang FOREIGN KEY (bidang_id) REFERENCES bidang(id) ON DELETE SET NULL ON UPDATE CASCADE");
+        }
+    }
 }
 
 function ensure_priority_one_schema($koneksi) {
@@ -1569,7 +1874,7 @@ function ensure_priority_one_schema($koneksi) {
     }
     $done = true;
 
-    ensure_role_schema_compatibility($koneksi);
+    ensure_user_management_schema($koneksi);
 
     if (schema_table_exists_now($koneksi, 'produk') && !schema_has_column_now($koneksi, 'produk', 'deskripsi')) {
         $koneksi->query("ALTER TABLE produk ADD COLUMN deskripsi TEXT NULL AFTER nama_produk");

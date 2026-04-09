@@ -3,6 +3,8 @@
 function formatRupiah($angka) {
     return "Rp " . number_format($angka, 0, ',', '.');
 }
+
+$canManageInventory = inventory_user_can_manage();
 ?>
 
 <!-- Kode HTML dan PHP untuk Halaman Barang Keluar -->
@@ -75,6 +77,8 @@ function formatRupiah($angka) {
 </div>
 
 <!-- Tombol untuk menambahkan barang keluar -->
+<?php if ($canManageInventory): ?>
 <a href="index.php?page=tambah_barang_keluar"><button class="btn btn-primary float-start mt-3">+ Tambah Barang Keluar</button></a>
+<?php endif; ?>
 <a href="index.php?page=dashboard"><button class="btn btn-secondary float-end mt-3">Tutup</button></a>
 <div class="clearfix"></div>

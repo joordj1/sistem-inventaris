@@ -2,7 +2,7 @@
 session_start();
 include 'koneksi/koneksi.php';
 
-require_auth_roles(['admin', 'petugas', 'viewer'], [
+require_auth_roles(['admin', 'petugas', 'user'], [
     'login_redirect' => 'login.php',
     'forbidden_redirect' => 'login.php',
 ]);
@@ -23,10 +23,10 @@ $pageRoleMap = [
     'edit_gudang' => ['admin', 'petugas'],
     'tambah_barang_masuk' => ['admin', 'petugas'],
     'tambah_barang_keluar' => ['admin', 'petugas'],
-    'mutasi_barang' => ['admin', 'petugas', 'viewer'],
-    'serah_terima' => ['admin', 'petugas', 'viewer'],
-    'report_mutasi' => ['admin', 'petugas', 'viewer'],
-    'histori_log' => ['admin', 'petugas', 'viewer'],
+    'mutasi_barang' => ['admin', 'petugas', 'user'],
+    'serah_terima' => ['admin', 'petugas', 'user'],
+    'report_mutasi' => ['admin', 'petugas', 'user'],
+    'histori_log' => ['admin', 'petugas', 'user'],
 ];
 ?>
 

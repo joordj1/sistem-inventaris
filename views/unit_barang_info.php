@@ -291,15 +291,17 @@ $userRows = get_active_user_rows($koneksi);
                             <div><strong>Status aktif:</strong> <?= htmlspecialchars($currentStatusLabel) ?></div>
                             <div><strong>Aksi valid:</strong> <?= htmlspecialchars(!empty($availableActions) ? implode(', ', $availableActions) : 'Tidak ada aksi cepat yang tersedia') ?></div>
                         </div>
+                        <?php if ($canManageInventory): ?>
                         <div class="d-flex flex-wrap gap-2 mb-3">
                             <a href="index.php?page=mutasi_barang&action=form&gudang_asal_id=<?= intval($unit['id_gudang'] ?? 0) ?>" class="btn btn-sm btn-outline-primary">Mutasi Resmi</a>
                             <a href="index.php?page=serah_terima&action=form&gudang_asal_id=<?= intval($unit['id_gudang'] ?? 0) ?>" class="btn btn-sm btn-outline-success">Serah Terima Formal</a>
                         </div>
+                        <?php endif; ?>
                         <div class="alert alert-light border">
                             Pindah antar gudang harus lewat mutasi resmi. Assign/release cepat tetap ada untuk operasi ringan tanpa berita acara.
                         </div>
                         <?php if (!$canManageInventory): ?>
-                        <div class="alert alert-light border">Role `viewer` tidak dapat mengubah unit asset.</div>
+                        <div class="alert alert-light border">Role `user` tidak dapat mengubah unit asset.</div>
                         <?php else: ?>
                         <?php if ($canMove): ?>
                         <form class="unit-action-form" data-url="action/update_unit_location.php" data-confirm="Pindahkan unit ini ke lokasi baru?">

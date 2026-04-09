@@ -1,7 +1,7 @@
 <?php
 $canManageInventory = inventory_user_can_manage();
 if (!$canManageInventory) {
-    echo '<div class="alert alert-warning">Role viewer hanya dapat melihat data serah terima.</div>';
+    echo '<div class="alert alert-warning">Role user hanya dapat melihat data serah terima.</div>';
     return;
 }
 

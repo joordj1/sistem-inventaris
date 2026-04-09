@@ -1,6 +1,6 @@
 <?php
 include '../koneksi/koneksi.php';
-require_auth_roles(['admin', 'petugas', 'viewer'], [
+require_auth_roles(['admin', 'petugas', 'user'], [
     'response' => 'json',
     'login_redirect' => '../login.php',
     'forbidden_redirect' => '../index.php?page=data_gudang',
