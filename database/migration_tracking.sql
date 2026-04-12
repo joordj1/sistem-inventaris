@@ -71,3 +71,12 @@ CREATE TABLE IF NOT EXISTS peminjaman (
 
 
 -- Perbarui skema default pada dump lama.
+
+-- Migrasi QR code lama ke URL publik scan (jalankan yang sesuai kolom pada DB Anda):
+-- UPDATE unit_barang
+-- SET qr_code = CONCAT('/scan_barang.php?id=', id_produk)
+-- WHERE qr_code LIKE '%index.php?page=unit_barang_info%';
+
+-- UPDATE unit_barang
+-- SET kode_qrcode = CONCAT('/scan_barang.php?id=', id_produk)
+-- WHERE kode_qrcode LIKE '%index.php?page=unit_barang_info%';

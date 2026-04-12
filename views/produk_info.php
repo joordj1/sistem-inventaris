@@ -58,7 +58,8 @@ $query = "SELECT produk.id_produk, produk.kode_produk, produk.nama_produk, kateg
                  produk.jumlah_stok, produk.satuan,
                  (COALESCE(NULLIF(produk.harga_default, 0), produk.harga_satuan, 0) * produk.jumlah_stok) AS total_nilai_view,
                  produk.gambar_produk, produk.status, produk.kondisi, produk.lokasi_custom, produk.tersedia,
-                 produk.last_tracked_at, produk.id_user, produk.id_gudang, produk.tipe_barang,
+                 produk.last_tracked_at, produk.id_user, produk.dipinjam_oleh, produk.tanggal_pinjam, produk.tanggal_kembali,
+                 produk.id_gudang, produk.tipe_barang,
                  gudang.nama_gudang
               FROM produk
               LEFT JOIN kategori ON produk.id_kategori = kategori.id_kategori
@@ -88,8 +89,12 @@ $query = "SELECT produk.id_produk, produk.kode_produk, produk.nama_produk, kateg
     }
 
     $current_pengguna = null;
-    if (!empty($data['id_user'])) {
-        $rsUser = $koneksi->query("SELECT nama FROM user WHERE id_user = " . intval($data['id_user']));
+    $borrowerId = intval($data['dipinjam_oleh'] ?? 0);
+    if ($borrowerId < 1) {
+        $borrowerId = intval($data['id_user'] ?? 0);
+    }
+    if ($borrowerId > 0) {
+        $rsUser = $koneksi->query("SELECT nama FROM user WHERE id_user = " . $borrowerId);
         $userRow = $rsUser->fetch_assoc();
         $current_pengguna = $userRow['nama'] ?? null;
     }
@@ -238,14 +243,62 @@ $query = "SELECT produk.id_produk, produk.kode_produk, produk.nama_produk, kateg
                     <tr><td>Harga Default</td><td><?= formatRupiah($data['harga_default_view'] ?? 0) ?></td></tr>
                     <tr><td>Total Nilai</td><td><?= formatRupiah($data['total_nilai_view'] ?? 0) ?></td></tr>
                     <tr><td>Dipinjam/Oleh</td><td><?= htmlspecialchars($current_pengguna ?? '-') ?></td></tr>
+                    <tr><td>Tanggal Pinjam</td><td><?= htmlspecialchars($data['tanggal_pinjam'] ?? '-') ?></td></tr>
+                    <tr><td>Tanggal Kembali</td><td><?= htmlspecialchars($data['tanggal_kembali'] ?? '-') ?></td></tr>
                     <tr><td>Update Terakhir</td><td><?= htmlspecialchars($data['last_tracked_at']) ?></td></tr>
                 </table>
             </div>
         </div>
 
         <div class="row mb-4">
-            <div class="col-12">
+            <div class="col-lg-4">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">Foto Terbaru</h5>
+                    </div>
+                    <div class="card-body d-flex flex-column">
+                        <?php 
+                        $latestPhoto = get_latest_product_photo($koneksi, $data['id_produk']);
+                        if ($latestPhoto && !empty($latestPhoto['photo_path'])): 
+                        ?>
+                            <div class="mb-3">
+                                <img src="<?= htmlspecialchars($latestPhoto['photo_path']) ?>" alt="Foto terbaru" class="img-fluid rounded" style="max-width: 100%; max-height: 300px; object-fit: contain;">
+                            </div>
+                            <div class="small text-muted">
+                                <div class="mb-2">
+                                    <strong>Diambil:</strong><br>
+                                    <?= htmlspecialchars($latestPhoto['created_at']) ?>
+                                </div>
+                                <div class="mb-2">
+                                    <strong>Tipe Transaksi:</strong><br>
+                                    <span class="badge bg-info"><?= ucfirst(htmlspecialchars($latestPhoto['ref_type'])) ?></span>
+                                </div>
+                                <div>
+                                    <strong>Oleh:</strong><br>
+                                    <?= htmlspecialchars($latestPhoto['actor_name'] ?? 'System') ?>
+                                </div>
+                            </div>
+                        <?php else: ?>
+                            <div class="text-center py-5">
+                                <svg class="mb-3" style="width: 64px; height: 64px; color: #dee2e6;" fill="currentColor" viewBox="0 0 16 16">
+                                    <path d="M14.5 1h-13C.67 1 0 1.67 0 2.5v11C0 14.33.67 15 1.5 15h13c.83 0 1.5-.67 1.5-1.5v-11C16 1.67 15.33 1 14.5 1zm0 12h-13v-11h13v11zM11 6a2 2 0 10-4 0 2 2 0 004 0zM2 11.5h12V13H2z"/>
+                                </svg>
+                                <p class="text-muted mb-0">Belum ada foto</p>
+                                <small class="text-muted">Foto akan muncul setelah transaksi mutasi atau serah terima dengan dokumentasi foto</small>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-8">
                 <h4>Aksi Tracking</h4>
+                <?php if (!empty($_GET['error'])): ?>
+                <div class="alert alert-danger"><?= htmlspecialchars((string) $_GET['error']) ?></div>
+                <?php endif; ?>
+                <?php if (!empty($_GET['success'])): ?>
+                <div class="alert alert-success"><?= htmlspecialchars((string) $_GET['success']) ?></div>
+                <?php endif; ?>
                 <?php if (!$canManageInventory): ?>
                 <div class="alert alert-secondary">Role `user` hanya dapat melihat detail dan riwayat tracking.</div>
                 <?php else: ?>

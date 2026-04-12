@@ -5,6 +5,23 @@ include 'koneksi/koneksi.php';
 $loginMessage = '';
 
 if (isset($_POST['login'])) {
+    if (!validate_csrf_token()) {
+        log_event('WARNING', 'CSRF', 'Token login tidak valid | ip=' . get_inventory_client_ip());
+        $loginMessage = "error|Permintaan login ditolak (CSRF).";
+    }
+
+    if ($loginMessage !== '') {
+        // stop processing
+    } else {
+    $loginRate = inventory_rate_limit_check('login_attempt', 10, 60);
+    if (!$loginRate['allowed']) {
+        log_event('WARNING', 'AUTH', 'Rate limit login terlampaui | ip=' . get_inventory_client_ip() . ' | retry_after=' . intval($loginRate['retry_after']));
+        $loginMessage = "error|Terlalu banyak percobaan login. Coba lagi dalam " . intval($loginRate['retry_after']) . " detik.";
+    }
+
+    if ($loginMessage !== '') {
+        // stop further auth processing when limited
+    } else {
     $username = trim((string) ($_POST['username'] ?? ''));
     $password = (string) ($_POST['password'] ?? '');
 
@@ -26,8 +43,10 @@ if (isset($_POST['login'])) {
         $isDeleted = schema_has_column_now($koneksi, 'user', 'deleted_at') && !empty($user['deleted_at']);
 
         if ($isDeleted || $status !== 'aktif') {
+            log_event('WARNING', 'AUTH', 'Login ditolak akun nonaktif | user=' . $username . ' | ip=' . get_inventory_client_ip());
             $loginMessage = "error|Akun ini sedang nonaktif.";
         } elseif (!verify_inventory_password($password, $user['password'] ?? null)) {
+            log_event('WARNING', 'AUTH', 'Login gagal password salah | user=' . $username . ' | ip=' . get_inventory_client_ip());
             $loginMessage = "error|Username atau Password salah!";
         } else {
             $role = normalize_user_role($user['role'] ?? null);
@@ -64,7 +83,10 @@ if (isset($_POST['login'])) {
             $loginMessage = "success|Selamat datang, {$user['username']}!";
         }
     } else {
+        log_event('WARNING', 'AUTH', 'Login gagal user tidak ditemukan | user=' . $username . ' | ip=' . get_inventory_client_ip());
         $loginMessage = "error|Username atau Password salah!";
+    }
+    }
     }
 }
 ?>
@@ -75,6 +97,7 @@ if (isset($_POST['login'])) {
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="<?= htmlspecialchars(generate_csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
     <title>Login - Sistem Inventaris</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/css/login.css">
@@ -83,6 +106,7 @@ if (isset($_POST['login'])) {
 <body>
 <div class="login-container">
     <form method="POST" action="login.php">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(generate_csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
         <div class="logo">
             <i class="bi bi-box-seam logo-size"></i>
         </div>

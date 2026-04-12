@@ -490,6 +490,202 @@ table.table {
   margin-bottom: var(--space-md);
 }
 
+.product-form-modern {
+  padding: 30px;
+  border-radius: 26px;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+}
+
+.product-form-modern .form-header {
+  background: #ffffff;
+  border-radius: 0;
+  padding: 0;
+  margin-bottom: 20px;
+}
+
+.product-form-modern .form-header h5 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 0.35rem;
+}
+
+.product-form-modern .form-header-subtitle {
+  margin-top: 0;
+  font-size: 0.9rem;
+  color: #6b7280;
+}
+
+.product-form-modern .st-form-grid .form-label,
+.product-form-modern .form-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  margin-bottom: 0.45rem;
+  color: #111827;
+}
+
+.product-form-modern .form-control,
+.product-form-modern .form-select,
+.product-form-modern textarea {
+  border-radius: 14px;
+  border: 1px solid #cfd8e3;
+  min-height: 48px;
+  padding: 0.72rem 0.95rem;
+  font-size: 0.98rem;
+  color: #1f2937;
+}
+
+.product-form-modern textarea {
+  min-height: 118px;
+  resize: none;
+}
+
+.product-form-modern .form-control:focus,
+.product-form-modern .form-select:focus,
+.product-form-modern textarea:focus {
+  border-color: #9fb3d9;
+  box-shadow: 0 0 0 4px rgba(148, 163, 184, 0.14);
+}
+
+.product-form-modern small.text-muted,
+.product-form-modern .form-text {
+  font-size: 0.78rem;
+  color: #6b7280 !important;
+  line-height: 1.45;
+}
+
+.product-form-modern .btn {
+  min-height: 48px;
+  border-radius: 14px;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.product-form-modern .btn-lg {
+  padding: 0.75rem 1.45rem;
+  font-size: 0.95rem;
+  border-radius: 14px;
+}
+
+.product-section-card {
+  border-radius: 22px;
+  box-shadow: none;
+  border: 1px solid #e5e7eb;
+}
+
+.product-section-card .card-body {
+  padding: 24px;
+}
+
+.product-section-title {
+  font-size: 0.96rem;
+  font-weight: 700;
+  color: #111827;
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.st-upload-panel {
+  border: 1px solid #e5e7eb;
+  border-radius: 18px;
+  padding: 1rem;
+  background: #fbfbfc;
+  height: 100%;
+}
+
+.st-upload-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 0.9rem;
+}
+
+.st-file-meta {
+  font-size: 0.8rem;
+  color: #6b7280;
+  min-height: 2.1em;
+}
+
+.st-preview-frame {
+  width: 100%;
+  max-width: 100%;
+  min-height: 220px;
+  max-height: 220px;
+  border: 1px dashed #d8dde6;
+  border-radius: 14px;
+  background: #f8fafc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 12px;
+}
+
+.st-preview-frame img {
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.upload-preview {
+  margin-top: 10px;
+  height: 160px;
+  border: 1px dashed #d1d5db;
+  border-radius: 8px;
+  background: #f9fafb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.upload-preview img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.product-form-actions {
+  row-gap: 0.75rem;
+}
+
+.product-submit-group {
+  min-width: 260px;
+}
+
+@media (max-width: 991.98px) {
+  .product-form-modern {
+    padding: 22px 18px;
+    border-radius: 22px;
+  }
+
+  .product-section-card .card-body {
+    padding: 18px;
+  }
+
+  .st-upload-panel {
+    height: auto;
+  }
+
+  .st-preview-frame {
+    min-height: 180px;
+    max-height: 180px;
+  }
+
+  .st-preview-frame img {
+    max-height: 100%;
+  }
+
+  .product-submit-group {
+    min-width: 100%;
+  }
+}
+
 .sidebar-top {
   display: flex;
   flex-direction: column;
@@ -611,9 +807,211 @@ table.table {
   }
 }
 
-
-
 /* Footer disembunyikan secara visual (tetap ada di kode, belum dihapus) */
 footer {
   display: none !important;
+}
+
+/* =====================================================
+   REDESIGN — Global UI Consistency (2026)
+   ===================================================== */
+
+/* --- Card improvements --- */
+.card {
+  border-radius: 12px !important;
+  box-shadow: 0 1px 6px rgba(10, 10, 40, 0.07) !important;
+  border: 1px solid #e2e8f0 !important;
+}
+
+.card-header {
+  background: #f8fafc !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+  font-weight: 700 !important;
+  font-size: 0.88rem !important;
+  padding: 12px 16px !important;
+  border-radius: 12px 12px 0 0 !important;
+}
+
+/* --- Badge soft palette --- */
+.badge.bg-primary {
+  background-color: #dbeafe !important;
+  color: #1e40af !important;
+}
+.badge.bg-success {
+  background-color: #dcfce7 !important;
+  color: #166534 !important;
+}
+.badge.bg-warning {
+  background-color: #fef9c3 !important;
+  color: #854d0e !important;
+}
+.badge.bg-danger {
+  background-color: #fee2e2 !important;
+  color: #991b1b !important;
+}
+.badge.bg-secondary {
+  background-color: #f1f5f9 !important;
+  color: #475569 !important;
+}
+.badge.bg-dark {
+  background-color: #1e293b !important;
+  color: #f8fafc !important;
+}
+.badge.bg-info {
+  background-color: #e0f2fe !important;
+  color: #0369a1 !important;
+}
+
+/* Keep filled badges intact where needed (override for btn-style badges) */
+.btn .badge,
+.nav-link .badge {
+  filter: none;
+}
+
+/* --- Table modern improvements --- */
+.table {
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.table thead th {
+  background: #f1f5f9 !important;
+  font-size: 0.77rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #475569 !important;
+  font-weight: 700;
+  padding: 10px 12px;
+  border-bottom: 2px solid #e2e8f0 !important;
+}
+
+.table td {
+  padding: 9px 12px;
+  vertical-align: middle;
+  border-color: #f1f5f9 !important;
+}
+
+.table tbody tr:nth-child(odd) {
+  background: #f8fafc;
+}
+.table tbody tr:nth-child(even) {
+  background: #ffffff;
+}
+.table tbody tr:hover {
+  background: #eef2ff !important;
+}
+
+/* --- Button consistency --- */
+.btn-success {
+  background: linear-gradient(130deg, #16a34a, #22c55e) !important;
+  border-color: #16a34a !important;
+  color: #fff !important;
+  font-weight: 600;
+  border-radius: 10px;
+}
+.btn-success:hover {
+  background: linear-gradient(130deg, #15803d, #16a34a) !important;
+}
+
+.btn-danger {
+  background: linear-gradient(130deg, #dc2626, #ef4444) !important;
+  border-color: #dc2626 !important;
+  color: #fff !important;
+  font-weight: 600;
+  border-radius: 10px;
+}
+.btn-danger:hover {
+  background: linear-gradient(130deg, #b91c1c, #dc2626) !important;
+}
+
+.btn-warning {
+  background: linear-gradient(130deg, #d97706, #f59e0b) !important;
+  border-color: #d97706 !important;
+  color: #fff !important;
+  font-weight: 600;
+  border-radius: 10px;
+}
+.btn-warning:hover {
+  background: linear-gradient(130deg, #b45309, #d97706) !important;
+}
+
+.btn-outline-primary {
+  border-radius: 10px;
+  font-weight: 600;
+}
+.btn-outline-success {
+  border-radius: 10px;
+  font-weight: 600;
+}
+.btn-outline-danger {
+  border-radius: 10px;
+  font-weight: 600;
+}
+.btn-outline-warning {
+  border-radius: 10px;
+  font-weight: 600;
+}
+.btn-outline-secondary {
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+/* --- Input/select consistent height --- */
+.form-control,
+.form-select {
+  border-radius: 8px !important;
+  height: 38px;
+  font-size: 14px;
+}
+
+textarea.form-control {
+  height: auto !important;
+}
+
+/* --- Spacing between page sections --- */
+.mb-section {
+  margin-bottom: 24px;
+}
+
+/* --- Page title consistency --- */
+h2,
+h3,
+h4.page-title {
+  font-weight: 800;
+  color: #111827;
+  letter-spacing: -0.01em;
+}
+
+/* --- Alert improvements --- */
+.alert {
+  border-radius: 10px !important;
+  font-size: 0.875rem;
+}
+
+/* --- Section separator --- */
+.section-divider {
+  border: none;
+  border-top: 2px solid #f1f5f9;
+  margin: 20px 0;
+}
+
+/* --- Responsive table wrapper --- */
+.table-responsive-wrap {
+  overflow-x: auto;
+  border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(10, 10, 40, 0.06);
+}
+
+/* --- Print QR global --- */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  .app-sidebar {
+    display: none !important;
+  }
+  .app-content {
+    margin-left: 0 !important;
+    width: 100% !important;
+  }
 }

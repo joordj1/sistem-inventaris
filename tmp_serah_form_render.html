@@ -1,0 +1,2228 @@
+﻿
+Notice: session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\sistem-inventaris\index.php on line 2
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Informasi Manajemen Inventaris Barang</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- Sweet Alert -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11.4.4/dist/sweetalert2.min.css">
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="assets/css/style.css">
+</head>
+
+<body class="app-shell">
+
+<aside class="app-sidebar" aria-label="Sidebar navigasi">
+    <div class="sidebar-top">
+        <div class="sidebar-brand">
+            <i class="bi bi-stack" aria-hidden="true"></i>
+            <span>Inventaris PLN UP Brantas</span>
+        </div>
+    </div>
+
+    <nav class="sidebar-nav" aria-label="Menu utama">
+                    <a href="index.php?page=dashboard" class="sidebar-item" aria-current="false">
+                <i class="bi bi-speedometer2"></i>
+                <span>Dashboard</span>
+            </a>
+                    <a href="index.php?page=data_produk" class="sidebar-item" aria-current="false">
+                <i class="bi bi-box-seam"></i>
+                <span>Data Barang</span>
+            </a>
+                    <a href="index.php?page=kategori_barang" class="sidebar-item" aria-current="false">
+                <i class="bi bi-tags"></i>
+                <span>Kategori Barang</span>
+            </a>
+                    <a href="index.php?page=data_gudang" class="sidebar-item" aria-current="false">
+                <i class="bi bi-building"></i>
+                <span>Lokasi / Gudang</span>
+            </a>
+                    <a href="index.php?page=laporan" class="sidebar-item" aria-current="false">
+                <i class="bi bi-file-earmark-text"></i>
+                <span>Laporan</span>
+            </a>
+                    <a href="index.php?page=histori_log" class="sidebar-item" aria-current="false">
+                <i class="bi bi-clock-history"></i>
+                <span>Histori Log</span>
+            </a>
+                    <a href="index.php?page=barang_masuk" class="sidebar-item" aria-current="false">
+                <i class="bi bi-box-arrow-in-down"></i>
+                <span>Barang Masuk</span>
+            </a>
+                    <a href="index.php?page=barang_keluar" class="sidebar-item" aria-current="false">
+                <i class="bi bi-box-arrow-up"></i>
+                <span>Barang Keluar</span>
+            </a>
+                    <a href="index.php?page=mutasi_barang" class="sidebar-item" aria-current="false">
+                <i class="bi bi-arrow-left-right"></i>
+                <span>Mutasi Barang</span>
+            </a>
+                    <a href="index.php?page=serah_terima" class="sidebar-item active" aria-current="page">
+                <i class="bi bi-clipboard-check"></i>
+                <span>Serah Terima</span>
+            </a>
+                    <a href="index.php?page=user" class="sidebar-item" aria-current="false">
+                <i class="bi bi-people"></i>
+                <span>Manajemen User</span>
+            </a>
+                    <a href="index.php?page=logout" class="sidebar-item" aria-current="false">
+                <i class="bi bi-box-arrow-right"></i>
+                <span>Keluar</span>
+            </a>
+            </nav>
+
+    <div class="sidebar-footer">
+        <p class="sidebar-footer-title">Butuh Bantuan?</p>
+        <a href="#" class="sidebar-link">Hubungi tim support</a>
+    </div>
+</aside>
+
+<div class="app-content">
+    <div class="page-header">
+        <h1 class="page-title">Inventaris Dashboard</h1>
+    </div>
+
+    <main class="main-page p-4">
+    
+<style>
+    .selection-subtext { font-size: 0.9rem; color: #6c757d; }
+    .selection-row-clickable tbody tr { cursor: pointer; }
+    .selection-row-clickable tbody tr td { vertical-align: middle; }
+    .selection-meta { font-size: 0.86rem; color: #6c757d; }
+    .selection-badge-group { display: flex; gap: 0.35rem; flex-wrap: wrap; margin-top: 0.35rem; }
+</style>
+
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h2 class="mb-1">Form Serah Terima Barang</h2>
+            <p class="text-muted mb-0">Pilih barang lebih cepat lewat pencarian, filter kategori, dan aksi massal.</p>
+        </div>
+        <a href="index.php?page=serah_terima" class="btn btn-secondary">Kembali</a>
+    </div>
+
+    
+        <div class="alert alert-info">Beberapa fitur dokumentasi belum aktif, namun proses tetap dapat dilanjutkan.</div>
+    
+    <form method="get" action="index.php" class="card card-body mb-4">
+        <input type="hidden" name="page" value="serah_terima">
+        <input type="hidden" name="action" value="form">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-6">
+                <label class="form-label">Muat Data dari Gudang Asal</label>
+                <select name="gudang_asal_id" class="form-select">
+                                        <option value="11" >
+                        gudang ATK                    </option>
+                                        <option value="12" >
+                        gudang cadangan                    </option>
+                                        <option value="10" >
+                        Gudang operasional                    </option>
+                                        <option value="9" >
+                        Gudang Utama                    </option>
+                                    </select>
+            </div>
+            <div class="col-md-6">
+                <button type="submit" class="btn btn-outline-primary">Refresh Barang</button>
+            </div>
+        </div>
+    </form>
+
+    <form action="action/simpan_serah_terima.php" method="post" enctype="multipart/form-data">
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Tanggal Serah Terima</label>
+                        <input type="datetime-local" name="tanggal_serah_terima" class="form-control" value="2026-04-09T04:36" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Gudang Asal</label>
+                        <select name="gudang_asal_id" class="form-select" required>
+                                                        <option value="11" >
+                                gudang ATK                            </option>
+                                                        <option value="12" >
+                                gudang cadangan                            </option>
+                                                        <option value="10" >
+                                Gudang operasional                            </option>
+                                                        <option value="9" >
+                                Gudang Utama                            </option>
+                                                    </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Jenis Tujuan</label>
+                        <select name="jenis_tujuan" class="form-select" required>
+                            <option value="user">User</option>
+                            <option value="lokasi">Lokasi</option>
+                            <option value="departemen">Departemen</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Penyerah (User)</label>
+                        <select name="pihak_penyerah_user_id" class="form-select">
+                            <option value="">Pilih User</option>
+                                                        <option value="6" >
+                                admin1                            </option>
+                                                        <option value="9" >
+                                admin2                            </option>
+                                                        <option value="11" >
+                                ivan                            </option>
+                                                        <option value="10" >
+                                joo                            </option>
+                                                        <option value="13" >
+                                user1                            </option>
+                                                    </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Nama Penyerah Snapshot</label>
+                        <input type="text" name="pihak_penyerah_nama" class="form-control" value="" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Penerima (User)</label>
+                        <select name="pihak_penerima_user_id" class="form-select">
+                            <option value="">Pilih User jika tujuan user</option>
+                                                        <option value="6">admin1</option>
+                                                        <option value="9">admin2</option>
+                                                        <option value="11">ivan</option>
+                                                        <option value="10">joo</option>
+                                                        <option value="13">user1</option>
+                                                    </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Nama Penerima Snapshot</label>
+                        <input type="text" name="pihak_penerima_nama" class="form-control" placeholder="Nama penerima / departemen" required>
+                    </div>
+                    <div class="col-md-8">
+                        <label class="form-label">Lokasi / Departemen Tujuan</label>
+                        <input type="text" name="lokasi_tujuan" class="form-control" placeholder="Opsional, terutama untuk tujuan lokasi / departemen">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Dokumen Serah Terima</label>
+                        <input type="file" name="dokumen_serah_terima" class="form-control" accept=".pdf,.jpg,.jpeg,.png,.webp">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Foto Dokumentasi</label>
+                        <input type="file" name="foto_dokumentasi_serah_terima" class="form-control" accept=".jpg,.jpeg,.png,.webp">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Catatan</label>
+                        <textarea name="catatan" class="form-control" rows="3" placeholder="Nomor BA, tujuan pemakaian, instruksi pengembalian, dst."></textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                    <strong>Barang Consumable</strong>
+                    <div class="selection-subtext">Gudang aktif: -</div>
+                </div>
+                <span class="badge bg-light text-dark border" data-selection-counter>0 item aktif dari 0 item</span>
+            </div>
+            <div class="card-body" data-selection-panel data-selection-mode="qty">
+                <div class="row g-2 mb-3">
+                    <div class="col-lg-5 col-md-6">
+                        <label class="form-label">Cari Barang</label>
+                        <input type="text" class="form-control" placeholder="Cari kode, nama, kategori, lokasi" data-selection-search>
+                    </div>
+                    <div class="col-lg-3 col-md-6">
+                        <label class="form-label">Kategori</label>
+                        <select class="form-select" data-selection-category>
+                            <option value="">Semua kategori</option>
+                                                    </select>
+                    </div>
+                    <div class="col-lg-2 col-md-6 d-grid">
+                        <label class="form-label">Aksi Cepat</label>
+                        <button type="button" class="btn btn-outline-primary" data-selection-select-all>Pilih Semua</button>
+                    </div>
+                    <div class="col-lg-2 col-md-6 d-grid">
+                        <label class="form-label">&nbsp;</label>
+                        <button type="button" class="btn btn-outline-secondary" data-selection-reset>Reset Pilihan</button>
+                    </div>
+                </div>
+
+                <div class="table-responsive table-container overflowy">
+                    <table class="table table-bordered table-striped align-middle">
+                        <thead>
+                            <tr>
+                                <th>Barang</th>
+                                <th>Status & Lokasi</th>
+                                <th>Stok Gudang Asal</th>
+                                <th>Qty Serah</th>
+                                <th>Kondisi Serah</th>
+                                <th>Catatan Detail</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                                                        <tr><td colspan="6" class="text-center">Tidak ada stok consumable yang bisa diserahterimakan.</td></tr>
+                                                    </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                    <strong>Unit Asset</strong>
+                    <div class="selection-subtext">Klik baris unit untuk memilih lebih cepat.</div>
+                </div>
+                <span class="badge bg-light text-dark border" data-selection-counter>0 unit dipilih dari 0 unit</span>
+            </div>
+            <div class="card-body" data-selection-panel data-selection-mode="checkbox">
+                <div class="row g-2 mb-3">
+                    <div class="col-lg-4 col-md-6">
+                        <label class="form-label">Cari Unit / Barang</label>
+                        <input type="text" class="form-control" placeholder="Cari kode unit, kode barang, nama, lokasi" data-selection-search>
+                    </div>
+                    <div class="col-lg-3 col-md-6">
+                        <label class="form-label">Kategori</label>
+                        <select class="form-select" data-selection-category>
+                            <option value="">Semua kategori</option>
+                                                        <option value="Elektronik">Elektronik</option>
+                                                    </select>
+                    </div>
+                    <div class="col-lg-3 col-md-6">
+                        <label class="form-label">Lokasi</label>
+                        <select class="form-select" data-selection-location>
+                            <option value="">Semua lokasi</option>
+                                                        <option value="-">-</option>
+                                                    </select>
+                    </div>
+                    <div class="col-lg-1 col-md-6 d-grid">
+                        <label class="form-label">Aksi</label>
+                        <button type="button" class="btn btn-outline-primary" data-selection-select-all>Pilih Semua</button>
+                    </div>
+                    <div class="col-lg-1 col-md-6 d-grid">
+                        <label class="form-label">&nbsp;</label>
+                        <button type="button" class="btn btn-outline-secondary" data-selection-reset>Reset</button>
+                    </div>
+                </div>
+
+                <div class="table-responsive table-container overflowy">
+                    <table class="table table-bordered table-striped selection-row-clickable align-middle">
+                        <thead>
+                            <tr>
+                                <th class="text-center">Pilih</th>
+                                <th>Unit</th>
+                                <th>Barang</th>
+                                <th>Status & Lokasi</th>
+                                <th>Kondisi Saat Ini</th>
+                                <th>Kondisi Serah</th>
+                                <th>Catatan Detail</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                                                                                            <tr data-selection-row
+                                    data-search-text="AE-060 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="66" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-060</strong></div>
+                                        <div class="selection-meta">ID: 66</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[66]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[66]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-059 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="65" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-059</strong></div>
+                                        <div class="selection-meta">ID: 65</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[65]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[65]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-058 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="64" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-058</strong></div>
+                                        <div class="selection-meta">ID: 64</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[64]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[64]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-057 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="63" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-057</strong></div>
+                                        <div class="selection-meta">ID: 63</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[63]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[63]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-056 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="62" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-056</strong></div>
+                                        <div class="selection-meta">ID: 62</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[62]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[62]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-055 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="61" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-055</strong></div>
+                                        <div class="selection-meta">ID: 61</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[61]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[61]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-054 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="60" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-054</strong></div>
+                                        <div class="selection-meta">ID: 60</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[60]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[60]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-053 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="59" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-053</strong></div>
+                                        <div class="selection-meta">ID: 59</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[59]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[59]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-052 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="58" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-052</strong></div>
+                                        <div class="selection-meta">ID: 58</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[58]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[58]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-051 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="57" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-051</strong></div>
+                                        <div class="selection-meta">ID: 57</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[57]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[57]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-050 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="56" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-050</strong></div>
+                                        <div class="selection-meta">ID: 56</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[56]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[56]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-049 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="55" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-049</strong></div>
+                                        <div class="selection-meta">ID: 55</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[55]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[55]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-048 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="54" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-048</strong></div>
+                                        <div class="selection-meta">ID: 54</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[54]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[54]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-047 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="53" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-047</strong></div>
+                                        <div class="selection-meta">ID: 53</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[53]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[53]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-046 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="52" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-046</strong></div>
+                                        <div class="selection-meta">ID: 52</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[52]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[52]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-045 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="51" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-045</strong></div>
+                                        <div class="selection-meta">ID: 51</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[51]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[51]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-044 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="50" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-044</strong></div>
+                                        <div class="selection-meta">ID: 50</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[50]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[50]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-043 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="49" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-043</strong></div>
+                                        <div class="selection-meta">ID: 49</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[49]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[49]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-042 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="48" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-042</strong></div>
+                                        <div class="selection-meta">ID: 48</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[48]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[48]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-041 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="47" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-041</strong></div>
+                                        <div class="selection-meta">ID: 47</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[47]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[47]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-040 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="46" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-040</strong></div>
+                                        <div class="selection-meta">ID: 46</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[46]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[46]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-039 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="45" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-039</strong></div>
+                                        <div class="selection-meta">ID: 45</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[45]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[45]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-038 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="44" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-038</strong></div>
+                                        <div class="selection-meta">ID: 44</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[44]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[44]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-037 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="43" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-037</strong></div>
+                                        <div class="selection-meta">ID: 43</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[43]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[43]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-036 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="42" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-036</strong></div>
+                                        <div class="selection-meta">ID: 42</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[42]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[42]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-035 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="41" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-035</strong></div>
+                                        <div class="selection-meta">ID: 41</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[41]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[41]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-034 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="40" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-034</strong></div>
+                                        <div class="selection-meta">ID: 40</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[40]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[40]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-033 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="39" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-033</strong></div>
+                                        <div class="selection-meta">ID: 39</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[39]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[39]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-032 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="38" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-032</strong></div>
+                                        <div class="selection-meta">ID: 38</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[38]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[38]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-031 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="37" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-031</strong></div>
+                                        <div class="selection-meta">ID: 37</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[37]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[37]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-030 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="36" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-030</strong></div>
+                                        <div class="selection-meta">ID: 36</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[36]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[36]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-029 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="35" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-029</strong></div>
+                                        <div class="selection-meta">ID: 35</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[35]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[35]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-028 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="34" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-028</strong></div>
+                                        <div class="selection-meta">ID: 34</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[34]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[34]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-027 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="33" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-027</strong></div>
+                                        <div class="selection-meta">ID: 33</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[33]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[33]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-026 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="32" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-026</strong></div>
+                                        <div class="selection-meta">ID: 32</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[32]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[32]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-025 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="31" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-025</strong></div>
+                                        <div class="selection-meta">ID: 31</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[31]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[31]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-024 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="30" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-024</strong></div>
+                                        <div class="selection-meta">ID: 30</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[30]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[30]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-023 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="29" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-023</strong></div>
+                                        <div class="selection-meta">ID: 29</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[29]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[29]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-022 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="28" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-022</strong></div>
+                                        <div class="selection-meta">ID: 28</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[28]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[28]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-021 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="27" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-021</strong></div>
+                                        <div class="selection-meta">ID: 27</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[27]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[27]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-020 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="26" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-020</strong></div>
+                                        <div class="selection-meta">ID: 26</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[26]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[26]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-019 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="25" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-019</strong></div>
+                                        <div class="selection-meta">ID: 25</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[25]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[25]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-018 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="24" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-018</strong></div>
+                                        <div class="selection-meta">ID: 24</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[24]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[24]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-017 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="23" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-017</strong></div>
+                                        <div class="selection-meta">ID: 23</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[23]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[23]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-016 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="22" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-016</strong></div>
+                                        <div class="selection-meta">ID: 22</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[22]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[22]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-015 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="21" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-015</strong></div>
+                                        <div class="selection-meta">ID: 21</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[21]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[21]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-014 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="20" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-014</strong></div>
+                                        <div class="selection-meta">ID: 20</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[20]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[20]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-013 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="19" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-013</strong></div>
+                                        <div class="selection-meta">ID: 19</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[19]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[19]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-012 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="18" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-012</strong></div>
+                                        <div class="selection-meta">ID: 18</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[18]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[18]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-011 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="17" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-011</strong></div>
+                                        <div class="selection-meta">ID: 17</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[17]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[17]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-010 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="16" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-010</strong></div>
+                                        <div class="selection-meta">ID: 16</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[16]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[16]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-009 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="15" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-009</strong></div>
+                                        <div class="selection-meta">ID: 15</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[15]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[15]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-008 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="14" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-008</strong></div>
+                                        <div class="selection-meta">ID: 14</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[14]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[14]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-007 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="13" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-007</strong></div>
+                                        <div class="selection-meta">ID: 13</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[13]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[13]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr data-selection-row
+                                    data-search-text="AE-006 PRD0004 acer nitro v15 Elektronik - Tersedia"
+                                    data-category="Elektronik"
+                                    data-location="-"
+                                    data-status="Tersedia">
+                                    <td class="text-center"><input type="checkbox" name="asset_unit_barang_id[]" value="12" data-selection-checkbox></td>
+                                    <td>
+                                                                                <div><strong>AE-006</strong></div>
+                                        <div class="selection-meta">ID: 12</div>
+                                    </td>
+                                    <td>
+                                        <div>PRD0004 - acer nitro v15</div>
+                                        <div class="selection-badge-group">
+                                            <span class="badge bg-light text-dark border border-primary">Elektronik</span>
+                                            <span class="badge bg-light text-dark border">Asset</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><span class="badge bg-success">Tersedia</span></div>
+                                        <div class="selection-meta mt-1">-</div>
+                                    </td>
+                                    <td>baik</td>
+                                    <td>
+                                        <select name="asset_kondisi_serah[12]" class="form-select">
+                                                                                        <option value="baik" selected>Baik</option>
+                                                                                        <option value="rusak" >Rusak</option>
+                                                                                        <option value="diperbaiki" >Diperbaiki</option>
+                                                                                        <option value="usang" >Usang</option>
+                                                                                        <option value="lainnya" >Lainnya</option>
+                                                                                    </select>
+                                    </td>
+                                    <td><input type="text" name="asset_catatan_detail[12]" class="form-control" placeholder="Catatan detail unit"></td>
+                                </tr>
+                                                                <tr class="d-none" data-selection-empty-row>
+                                    <td colspan="7" class="text-center text-muted">Tidak ada unit yang cocok dengan filter.</td>
+                                </tr>
+                                                    </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-between">
+            <a href="index.php?page=serah_terima" class="btn btn-secondary">Batal</a>
+            <button type="submit" class="btn btn-primary">Simpan Serah Terima</button>
+        </div>
+    </form>
+</div>
+
+<script src="assets/js/inventory-selection-ux.js"></script></div>
+
+    </main>
+</div>
+
+<footer class="bg-dark text-white text-center py-4 mt-auto">
+        <div class="container">
+            <div class="row text-center text-md-start">
+                <!-- About Section -->
+                <div class="col-md-4 mb-4">
+                    <h5 class="text-uppercase">Tentang Kami</h5>
+                    <p class="small text-muted">
+                        <!-- Sistem Informasi Manajemen Inventaris Barang membantu bisnis dalam pengelolaan stok yang lebih efektif dan efisien, menciptakan solusi inventaris modern untuk mendukung kemajuan perusahaan Anda. -->
+                    </p>
+                </div>
+
+                <!-- Quick Links Section -->
+                <div class="col-md-2 mb-4">
+                    <h5 class="text-uppercase">Navigasi</h5>
+                    <ul class="list-unstyled">
+                        <li><a href="index.php?page=dashboard" class="text-white-50 text-decoration-none">Dashboard</a></li>
+                        <li><a href="index.php?page=laporan" class="text-white-50 text-decoration-none">Laporan</a></li>
+                        <li><a href="index.php?page=user" class="text-white-50 text-decoration-none">User</a></li>
+                    </ul>
+                </div>
+
+                <!-- Contact Section -->
+                <div class="col-md-3 mb-4">
+                    <h5 class="text-uppercase">Kontak Kami</h5>
+                    <ul class="list-unstyled">
+                        <li><i class="bi bi-geo-alt-fill me-2"></i><span class="small text-muted">Jl. Perjuangan No.10 Kota Cirebon</span></li>
+                        <li><i class="bi bi-telephone-fill me-2"></i><span class="small text-muted">+62 896 3341 3511</span></li>
+                        <li><i class="bi bi-envelope-fill me-2"></i><span class="small text-muted">support@inventaris.com</span></li>
+                    </ul>
+                </div>
+
+                <!-- Social Media Section -->
+                <div class="col-md-3 text-center text-md-start">
+                    <h5 class="text-uppercase">Ikuti Kami</h5>
+                    <div class="d-flex justify-content-center justify-content-md-start">
+                        <a href="#" class="text-white-50 me-3 fs-5"><i class="bi bi-facebook"></i></a>
+                        <a href="#" class="text-white-50 me-3 fs-5"><i class="bi bi-twitter"></i></a>
+                        <a href="#" class="text-white-50 me-3 fs-5"><i class="bi bi-instagram"></i></a>
+                        <a href="#" class="text-white-50 fs-5"><i class="bi bi-linkedin"></i></a>
+                    </div>
+                </div>
+            </div>
+
+            <hr class="text-white-50">
+
+            <!-- Copyright -->
+            <div class="text-center small text-muted">
+                &copy; 2024 Sistem Informasi Manajemen Inventaris Barang. All rights reserved.
+            </div>
+        </div>
+    </footer>
+<!-- Bootstrap JS and Dependencies -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<!-- Tambahkan SweetAlert2 dari CDN -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<!-- js -->
+<script src="assets/js/delete.js"></script>
+<script src="assets/js/delete_kategori.js"></script>
+<script src="assets/js/delete_gudang.js"></script>
+<script src="assets/js/delete_user.js"></script>
+</body>
+</html>

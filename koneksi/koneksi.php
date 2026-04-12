@@ -14,9 +14,25 @@ if ($koneksi->connect_error) {
 $activeDbResult = $koneksi->query("SELECT DATABASE() AS dbname");
 if ($activeDbResult) {
     $activeDbName = $activeDbResult->fetch_assoc()['dbname'];
-    error_log("[DEBUG] Database aktif: " . $activeDbName);
+    log_event('DEBUG', 'DB', 'Database aktif: ' . $activeDbName);
     // Gunakan echo hanya di environment dev, jika ingin dari UI tampilan.
     // echo "DEBUG: Database aktif adalah " . $activeDbName . "\n";
+}
+
+function log_event($level, $module, $message) {
+    $level = strtoupper(trim((string) $level));
+    $module = strtoupper(trim((string) $module));
+    $message = trim((string) $message);
+
+    if ($level === '') {
+        $level = 'INFO';
+    }
+    if ($module === '') {
+        $module = 'APP';
+    }
+
+    $line = sprintf('[%s] [%s] [%s] %s', date('Y-m-d H:i:s'), $level, $module, $message);
+    error_log($line);
 }
 
 function normalize_user_role($role) {
@@ -111,6 +127,7 @@ function require_auth_roles($roles, $options = []) {
     $message = $options['message'] ?? 'Anda tidak memiliki akses untuk melakukan aksi ini.';
 
     if (empty($_SESSION['id_user'])) {
+        log_event('WARNING', 'AUTH', 'Akses ditolak (401) - belum login | path=' . ($_SERVER['REQUEST_URI'] ?? '-'));
         if ($responseType === 'json') {
             http_response_code(401);
             header('Content-Type: application/json');
@@ -123,6 +140,8 @@ function require_auth_roles($roles, $options = []) {
     }
 
     if (!current_user_has_role($roles)) {
+        $requiredRoles = is_array($roles) ? implode(',', array_map('normalize_user_role', $roles)) : normalize_user_role($roles);
+        log_event('WARNING', 'AUTH', 'Akses ditolak (403) | user_id=' . intval($_SESSION['id_user'] ?? 0) . ' | role=' . (get_current_user_role() ?? '-') . ' | required=' . $requiredRoles . ' | path=' . ($_SERVER['REQUEST_URI'] ?? '-'));
         if ($responseType === 'json') {
             http_response_code(403);
             header('Content-Type: application/json');
@@ -135,6 +154,232 @@ function require_auth_roles($roles, $options = []) {
     }
 
     return get_current_user_role();
+}
+
+function set_flash_message($type, $message) {
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
+
+    $type = strtolower(trim((string) $type));
+    if (!in_array($type, ['success', 'error', 'warning', 'info'], true)) {
+        $type = 'info';
+    }
+
+    $_SESSION['flash_message'] = [
+        'type' => $type,
+        'message' => trim((string) $message),
+    ];
+}
+
+function consume_flash_message() {
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
+
+    $flash = $_SESSION['flash_message'] ?? null;
+    unset($_SESSION['flash_message']);
+
+    if (!is_array($flash) || empty($flash['message'])) {
+        return null;
+    }
+
+    $type = strtolower(trim((string) ($flash['type'] ?? 'info')));
+    if (!in_array($type, ['success', 'error', 'warning', 'info'], true)) {
+        $type = 'info';
+    }
+
+    return [
+        'type' => $type,
+        'message' => trim((string) $flash['message']),
+    ];
+}
+
+function generate_csrf_token() {
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
+
+    $token = trim((string) ($_SESSION['csrf_token'] ?? ''));
+    if ($token === '' || strlen($token) < 32) {
+        $token = bin2hex(random_bytes(32));
+        $_SESSION['csrf_token'] = $token;
+    }
+
+    return $token;
+}
+
+function get_request_csrf_token() {
+    $posted = trim((string) ($_POST['csrf_token'] ?? ''));
+    if ($posted !== '') {
+        return $posted;
+    }
+
+    $headerToken = trim((string) ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? ''));
+    if ($headerToken !== '') {
+        return $headerToken;
+    }
+
+    return '';
+}
+
+function validate_csrf_token($token = null) {
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
+
+    $expected = trim((string) ($_SESSION['csrf_token'] ?? ''));
+    if ($expected === '') {
+        return false;
+    }
+
+    $candidate = $token === null ? get_request_csrf_token() : trim((string) $token);
+    if ($candidate === '') {
+        return false;
+    }
+
+    return hash_equals($expected, $candidate);
+}
+
+function csrf_token_input_html() {
+    return '<input type="hidden" name="csrf_token" value="' . htmlspecialchars(generate_csrf_token(), ENT_QUOTES, 'UTF-8') . '">';
+}
+
+function inventory_request_expects_json() {
+    $accept = strtolower((string) ($_SERVER['HTTP_ACCEPT'] ?? ''));
+    $xrw = strtolower((string) ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? ''));
+    return strpos($accept, 'application/json') !== false || $xrw === 'xmlhttprequest';
+}
+
+function reject_invalid_csrf_request($responseType = 'auto') {
+    $resolved = $responseType === 'auto' ? (inventory_request_expects_json() ? 'json' : 'page') : $responseType;
+    http_response_code(403);
+    log_event('WARNING', 'CSRF', 'Token tidak valid | path=' . ($_SERVER['REQUEST_URI'] ?? '-') . ' | ip=' . get_inventory_client_ip());
+
+    if ($resolved === 'json') {
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'error' => 'Permintaan ditolak (CSRF).']);
+        exit;
+    }
+
+    echo '<h3>403 Forbidden</h3><p>Permintaan ditolak (CSRF).</p>';
+    exit;
+}
+
+function get_inventory_client_ip() {
+    $candidates = [
+        $_SERVER['HTTP_CF_CONNECTING_IP'] ?? null,
+        $_SERVER['HTTP_X_FORWARDED_FOR'] ?? null,
+        $_SERVER['REMOTE_ADDR'] ?? null,
+    ];
+
+    foreach ($candidates as $candidate) {
+        $candidate = trim((string) ($candidate ?? ''));
+        if ($candidate === '') {
+            continue;
+        }
+
+        if (strpos($candidate, ',') !== false) {
+            $parts = explode(',', $candidate);
+            $candidate = trim((string) ($parts[0] ?? ''));
+        }
+
+        if ($candidate !== '') {
+            return $candidate;
+        }
+    }
+
+    return 'unknown';
+}
+
+function inventory_rate_limit_check($scope, $maxRequests = 60, $windowSeconds = 60) {
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
+
+    $scope = preg_replace('/[^a-zA-Z0-9_\-:]/', '_', (string) $scope);
+    $maxRequests = max(1, intval($maxRequests));
+    $windowSeconds = max(1, intval($windowSeconds));
+
+    $ip = get_inventory_client_ip();
+    $sessionId = session_id();
+    $userId = intval($_SESSION['id_user'] ?? 0);
+    $fingerprint = hash('sha256', $scope . '|' . $ip . '|' . $sessionId . '|' . $userId);
+
+    $dir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'inventaris_rate_limit';
+    if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
+        return [
+            'allowed' => true,
+            'remaining' => $maxRequests,
+            'retry_after' => 0,
+        ];
+    }
+
+    $file = $dir . DIRECTORY_SEPARATOR . $fingerprint . '.json';
+    $now = time();
+    $state = [
+        'window_start' => $now,
+        'count' => 0,
+    ];
+
+    $fh = @fopen($file, 'c+');
+    if (!$fh) {
+        return [
+            'allowed' => true,
+            'remaining' => $maxRequests,
+            'retry_after' => 0,
+        ];
+    }
+
+    try {
+        if (!flock($fh, LOCK_EX)) {
+            return [
+                'allowed' => true,
+                'remaining' => $maxRequests,
+                'retry_after' => 0,
+            ];
+        }
+
+        $raw = stream_get_contents($fh);
+        $parsed = json_decode((string) $raw, true);
+        if (is_array($parsed) && isset($parsed['window_start'], $parsed['count'])) {
+            $state['window_start'] = intval($parsed['window_start']);
+            $state['count'] = intval($parsed['count']);
+        }
+
+        if (($now - $state['window_start']) >= $windowSeconds) {
+            $state['window_start'] = $now;
+            $state['count'] = 0;
+        }
+
+        $state['count']++;
+        $allowed = $state['count'] <= $maxRequests;
+        $retryAfter = $allowed ? 0 : max(1, $windowSeconds - ($now - $state['window_start']));
+
+        rewind($fh);
+        ftruncate($fh, 0);
+        fwrite($fh, json_encode($state));
+        fflush($fh);
+        flock($fh, LOCK_UN);
+
+        return [
+            'allowed' => $allowed,
+            'remaining' => max(0, $maxRequests - $state['count']),
+            'retry_after' => $retryAfter,
+        ];
+    } finally {
+        fclose($fh);
+    }
+}
+
+if (PHP_SAPI !== 'cli' && (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST')) {
+    $scriptName = str_replace('\\', '/', (string) ($_SERVER['SCRIPT_NAME'] ?? ''));
+    $scriptBase = basename($scriptName);
+    if (strpos($scriptName, '/action/') !== false || $scriptBase === 'index.php') {
+        if (!validate_csrf_token()) {
+            reject_invalid_csrf_request('auto');
+        }
+    }
 }
 
 function schema_table_exists_now($koneksi, $tableName) {
@@ -710,6 +955,336 @@ function get_produk_by_id($koneksi, $id_produk) {
     return $res->fetch_assoc();
 }
 
+function normalize_foundation_barang_status($value) {
+    $normalized = strtolower(trim((string) ($value ?? '')));
+    $map = [
+        'tersedia' => 'tersedia',
+        'available' => 'tersedia',
+        'dipinjam' => 'dipinjam',
+        'dipakai' => 'dipinjam',
+        'digunakan' => 'dipinjam',
+        'sedang digunakan' => 'dipinjam',
+        'dipindahkan' => 'tersedia',
+        'pindah' => 'tersedia',
+        'rusak' => 'rusak',
+        'perbaikan' => 'diperbaiki',
+        'dalam perbaikan' => 'diperbaiki',
+        'diperbaiki' => 'diperbaiki',
+    ];
+
+    return $map[$normalized] ?? 'tersedia';
+}
+
+function map_foundation_barang_status_for_storage($value) {
+    $normalized = normalize_foundation_barang_status($value);
+    $map = [
+        'tersedia' => 'tersedia',
+        'dipinjam' => 'dipinjam',
+        'rusak' => 'rusak',
+        'diperbaiki' => 'dalam perbaikan',
+    ];
+
+    return $map[$normalized] ?? 'tersedia';
+}
+
+function get_foundation_barang_borrower_id($produk) {
+    $borrowerId = nullable_int_id($produk['dipinjam_oleh'] ?? null);
+    if ($borrowerId !== null) {
+        return $borrowerId;
+    }
+
+    return nullable_int_id($produk['id_user'] ?? null);
+}
+
+function sync_foundation_perbaikan_record($koneksi, $id_produk, $foundationStatus, $data = []) {
+    ensure_priority_one_schema($koneksi);
+
+    if (!schema_table_exists_now($koneksi, 'perbaikan_barang')) {
+        return false;
+    }
+
+    $id_produk = intval($id_produk);
+    if ($id_produk < 1) {
+        return false;
+    }
+
+    $foundationStatus = normalize_foundation_barang_status($foundationStatus);
+    $idUnitBarang = nullable_int_id($data['id_unit_barang'] ?? null);
+    $actorId = nullable_int_id($data['actor_user_id'] ?? ($data['id_user'] ?? current_user_id()));
+    $deskripsi = trim((string) ($data['deskripsi'] ?? ($data['note'] ?? '')));
+    $startedAt = trim((string) ($data['tanggal_mulai'] ?? ''));
+    $finishedAt = trim((string) ($data['tanggal_selesai'] ?? ''));
+    $startedAt = $startedAt !== '' ? $startedAt : date('Y-m-d H:i:s');
+    $finishedAt = $finishedAt !== '' ? $finishedAt : date('Y-m-d H:i:s');
+
+    $openSql = "SELECT id_perbaikan
+                FROM perbaikan_barang
+                WHERE id_produk = ?
+                  AND status = 'proses'";
+    if ($idUnitBarang !== null && schema_has_column_now($koneksi, 'perbaikan_barang', 'id_unit_barang')) {
+        $openSql .= " AND id_unit_barang = ?";
+    }
+    $openSql .= " ORDER BY id_perbaikan DESC LIMIT 1";
+
+    $stmtOpen = $koneksi->prepare($openSql);
+    if (!$stmtOpen) {
+        return false;
+    }
+
+    if ($idUnitBarang !== null && schema_has_column_now($koneksi, 'perbaikan_barang', 'id_unit_barang')) {
+        $stmtOpen->bind_param('ii', $id_produk, $idUnitBarang);
+    } else {
+        $stmtOpen->bind_param('i', $id_produk);
+    }
+    $stmtOpen->execute();
+    $openResult = $stmtOpen->get_result();
+    $openRow = $openResult ? $openResult->fetch_assoc() : null;
+
+    if ($foundationStatus === 'diperbaiki') {
+        if ($openRow) {
+            return true;
+        }
+
+        $insertSql = "INSERT INTO perbaikan_barang (
+                id_produk, id_unit_barang, tanggal_mulai, deskripsi, status, created_by, updated_by, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, 'proses', ?, ?, NOW(), NOW())";
+        $stmtInsert = $koneksi->prepare($insertSql);
+        if (!$stmtInsert) {
+            return false;
+        }
+
+        $stmtInsert->bind_param('iissii', $id_produk, $idUnitBarang, $startedAt, $deskripsi, $actorId, $actorId);
+        return $stmtInsert->execute();
+    }
+
+    if (!$openRow) {
+        return false;
+    }
+
+    if (!in_array($foundationStatus, ['tersedia', 'rusak'], true)) {
+        return true;
+    }
+
+    $finalStatus = $foundationStatus === 'tersedia' ? 'selesai' : 'tidak_dapat_diperbaiki';
+    $appendNote = $deskripsi !== '' ? "\n[Status akhir] " . $deskripsi : '';
+    $updateSql = "UPDATE perbaikan_barang
+                  SET tanggal_selesai = ?,
+                      status = ?,
+                      deskripsi = CONCAT(COALESCE(deskripsi, ''), ?),
+                      updated_by = ?,
+                      updated_at = NOW()
+                  WHERE id_perbaikan = ?";
+    $stmtUpdate = $koneksi->prepare($updateSql);
+    if (!$stmtUpdate) {
+        return false;
+    }
+
+    $perbaikanId = intval($openRow['id_perbaikan']);
+    $stmtUpdate->bind_param('sssii', $finishedAt, $finalStatus, $appendNote, $actorId, $perbaikanId);
+    return $stmtUpdate->execute();
+}
+
+function apply_foundation_barang_state($koneksi, $id_produk, $data = []) {
+    ensure_priority_one_schema($koneksi);
+
+    if (!schema_table_exists_now($koneksi, 'produk')) {
+        return false;
+    }
+
+    $produk = get_produk_by_id($koneksi, $id_produk);
+    if (!$produk) {
+        return false;
+    }
+
+    $activityType = normalize_tracking_activity_type($data['activity_type'] ?? 'update');
+    $existingStatus = normalize_foundation_barang_status($produk['status'] ?? 'tersedia');
+    $existingBorrowerId = get_foundation_barang_borrower_id($produk);
+    $currentFoundationStatus = $existingStatus;
+
+    if (array_key_exists('foundation_status', $data) || array_key_exists('status', $data)) {
+        $currentFoundationStatus = normalize_foundation_barang_status($data['foundation_status'] ?? $data['status']);
+    } else {
+        $activityStatusMap = [
+            'pinjam' => 'dipinjam',
+            'kembali' => 'tersedia',
+            'perbaikan' => 'diperbaiki',
+            'rusak' => 'rusak',
+        ];
+        $currentFoundationStatus = $activityStatusMap[$activityType] ?? $existingStatus;
+    }
+
+    $borrowerId = array_key_exists('dipinjam_oleh', $data)
+        ? nullable_int_id($data['dipinjam_oleh'])
+        : nullable_int_id($data['id_user'] ?? $existingBorrowerId);
+
+    if ($currentFoundationStatus !== 'dipinjam') {
+        $borrowerId = null;
+    }
+
+    $assignedUserId = array_key_exists('id_user', $data)
+        ? nullable_int_id($data['id_user'])
+        : $borrowerId;
+
+    if ($currentFoundationStatus !== 'dipinjam') {
+        $assignedUserId = null;
+    }
+
+    $tanggalPinjam = array_key_exists('tanggal_pinjam', $data)
+        ? trim((string) ($data['tanggal_pinjam'] ?? ''))
+        : '';
+    if ($tanggalPinjam === '') {
+        if ($currentFoundationStatus === 'dipinjam') {
+            $tanggalPinjam = !empty($produk['tanggal_pinjam']) ? $produk['tanggal_pinjam'] : date('Y-m-d H:i:s');
+        } else {
+            $tanggalPinjam = null;
+        }
+    }
+
+    $tanggalKembali = array_key_exists('tanggal_kembali', $data)
+        ? trim((string) ($data['tanggal_kembali'] ?? ''))
+        : '';
+    if ($tanggalKembali === '') {
+        $hadBorrower = $existingBorrowerId !== null || !empty($produk['tanggal_pinjam']);
+        if ($currentFoundationStatus === 'tersedia' && ($activityType === 'kembali' || $hadBorrower)) {
+            $tanggalKembali = date('Y-m-d H:i:s');
+        } else {
+            $tanggalKembali = null;
+        }
+    }
+
+    if ($currentFoundationStatus === 'dipinjam') {
+        $tanggalKembali = null;
+    }
+
+    $updateFields = [
+        'status' => map_foundation_barang_status_for_storage($currentFoundationStatus),
+        'tersedia' => $currentFoundationStatus === 'tersedia' ? 1 : 0,
+    ];
+
+    if (schema_has_column_now($koneksi, 'produk', 'id_user')) {
+        $updateFields['id_user'] = $assignedUserId;
+    }
+    if (schema_has_column_now($koneksi, 'produk', 'dipinjam_oleh')) {
+        $updateFields['dipinjam_oleh'] = $borrowerId;
+    }
+    if (schema_has_column_now($koneksi, 'produk', 'tanggal_pinjam')) {
+        $updateFields['tanggal_pinjam'] = $tanggalPinjam;
+    }
+    if (schema_has_column_now($koneksi, 'produk', 'tanggal_kembali')) {
+        $updateFields['tanggal_kembali'] = $tanggalKembali;
+    }
+
+    $setParts = [];
+    foreach ($updateFields as $column => $value) {
+        if ($value === null || $value === '') {
+            $setParts[] = "$column = NULL";
+        } elseif (is_int($value)) {
+            $setParts[] = "$column = " . intval($value);
+        } else {
+            $setParts[] = "$column = '" . $koneksi->real_escape_string((string) $value) . "'";
+        }
+    }
+
+    if (schema_has_column_now($koneksi, 'produk', 'last_tracked_at')) {
+        $setParts[] = "last_tracked_at = NOW()";
+    }
+
+    if (empty($setParts)) {
+        return false;
+    }
+
+    $query = "UPDATE produk SET " . implode(', ', $setParts) . " WHERE id_produk = " . intval($id_produk);
+    $updated = (bool) $koneksi->query($query);
+
+    if ($updated && !empty($data['sync_perbaikan'])) {
+        sync_foundation_perbaikan_record($koneksi, $id_produk, $currentFoundationStatus, [
+            'id_unit_barang' => $data['id_unit_barang'] ?? null,
+            'actor_user_id' => $data['actor_user_id'] ?? null,
+            'deskripsi' => $data['deskripsi'] ?? ($data['note'] ?? ''),
+            'tanggal_mulai' => $data['tanggal_pinjam'] ?? null,
+            'tanggal_selesai' => $data['tanggal_kembali'] ?? null,
+        ]);
+    }
+
+    return $updated;
+}
+
+function sync_foundation_barang_from_units($koneksi, $id_produk, $options = []) {
+    ensure_priority_one_schema($koneksi);
+
+    if (!schema_table_exists_now($koneksi, 'unit_barang')) {
+        return false;
+    }
+
+    $id_produk = intval($id_produk);
+    if ($id_produk < 1) {
+        return false;
+    }
+
+    $stmt = $koneksi->prepare(
+        "SELECT id_unit_barang, status, id_user, updated_at
+         FROM unit_barang
+         WHERE id_produk = ?
+         ORDER BY CASE WHEN id_user IS NULL THEN 1 ELSE 0 END, updated_at DESC, id_unit_barang ASC"
+    );
+    if (!$stmt) {
+        return false;
+    }
+
+    $stmt->bind_param('i', $id_produk);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    $totalUnits = 0;
+    $borrowerId = null;
+    $tanggalPinjam = null;
+    $dipakaiCount = 0;
+    $perbaikanCount = 0;
+    $rusakCount = 0;
+
+    while ($row = $result->fetch_assoc()) {
+        $totalUnits++;
+        $status = normalize_asset_unit_status($row['status'] ?? null);
+        if ($status === 'dipakai') {
+            $dipakaiCount++;
+            if ($borrowerId === null) {
+                $borrowerId = nullable_int_id($row['id_user'] ?? null);
+                $tanggalPinjam = !empty($row['updated_at']) ? $row['updated_at'] : date('Y-m-d H:i:s');
+            }
+        } elseif ($status === 'perbaikan') {
+            $perbaikanCount++;
+        } elseif ($status === 'rusak') {
+            $rusakCount++;
+        }
+    }
+
+    if ($totalUnits < 1) {
+        return false;
+    }
+
+    $foundationStatus = 'tersedia';
+    if ($dipakaiCount > 0) {
+        $foundationStatus = 'dipinjam';
+    } elseif ($perbaikanCount > 0) {
+        $foundationStatus = 'diperbaiki';
+    } elseif ($rusakCount === $totalUnits) {
+        $foundationStatus = 'rusak';
+    }
+
+    return apply_foundation_barang_state($koneksi, $id_produk, [
+        'foundation_status' => $foundationStatus,
+        'dipinjam_oleh' => $borrowerId,
+        'id_user' => $borrowerId,
+        'tanggal_pinjam' => $tanggalPinjam,
+        'activity_type' => $options['activity_type'] ?? 'update',
+        'sync_perbaikan' => $options['sync_perbaikan'] ?? false,
+        'id_unit_barang' => $options['id_unit_barang'] ?? null,
+        'actor_user_id' => $options['actor_user_id'] ?? null,
+        'note' => $options['note'] ?? null,
+        'deskripsi' => $options['deskripsi'] ?? null,
+    ]);
+}
+
 function get_unit_barang_by_id($koneksi, $id_unit_barang) {
     $id_unit_barang = intval($id_unit_barang);
     $stmt = $koneksi->prepare("SELECT * FROM unit_barang WHERE id_unit_barang = ?");
@@ -1071,13 +1646,281 @@ function build_asset_unit_code_seed($koneksi, $id_produk, $kode_produk) {
     ];
 }
 
-function build_asset_qr_value($id_unit_barang) {
+function get_inventory_public_base_url() {
     $proto = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-    $host = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : 'localhost';
-    $requestUri = isset($_SERVER['REQUEST_URI']) ? dirname($_SERVER['REQUEST_URI']) : '';
-    $base = rtrim($host . $requestUri, '/\\');
+    $host = isset($_SERVER['HTTP_HOST']) ? trim((string) $_SERVER['HTTP_HOST']) : 'localhost';
 
-    return $proto . '://' . $base . '/index.php?page=unit_barang_info&id_unit_barang=' . intval($id_unit_barang);
+    $scriptName = str_replace('\\', '/', (string) ($_SERVER['SCRIPT_NAME'] ?? ''));
+    $scriptDir = str_replace('\\', '/', dirname($scriptName));
+    $scriptDir = rtrim($scriptDir, '/');
+
+    if ($scriptDir === '.' || $scriptDir === '/') {
+        $appPath = '';
+    } else {
+        $appPath = $scriptDir;
+        $parts = explode('/', trim($scriptDir, '/'));
+        $last = strtolower((string) end($parts));
+        if (in_array($last, ['action', 'views', 'form', 'pages', 'laporan', 'delete'], true)) {
+            array_pop($parts);
+            $appPath = !empty($parts) ? ('/' . implode('/', $parts)) : '';
+        }
+    }
+
+    return rtrim($proto . '://' . $host . $appPath, '/');
+}
+
+function asset_qr_hash_column_exists($koneksi) {
+    return schema_has_column_now($koneksi, 'unit_barang', 'qr_hash');
+}
+
+function ensure_asset_qr_hash_schema($koneksi) {
+    static $done = false;
+    if ($done) {
+        return true;
+    }
+    $done = true;
+
+    if (!schema_table_exists_now($koneksi, 'unit_barang')) {
+        return false;
+    }
+
+    if (!asset_qr_hash_column_exists($koneksi)) {
+        if (!$koneksi->query("ALTER TABLE unit_barang ADD COLUMN qr_hash VARCHAR(64) NULL")) {
+            log_event('ERROR', 'QR', 'Gagal menambah kolom qr_hash: ' . $koneksi->error);
+            return false;
+        }
+    }
+
+    if (!schema_has_unique_index_now($koneksi, 'unit_barang', 'qr_hash')) {
+        if (!$koneksi->query("ALTER TABLE unit_barang ADD UNIQUE KEY uk_unit_barang_qr_hash (qr_hash)")) {
+            log_event('WARNING', 'QR', 'Gagal menambah unique index qr_hash (mungkin sudah ada nama lain): ' . $koneksi->error);
+        }
+    }
+
+    return true;
+}
+
+function generate_inventory_qr_hash() {
+    return bin2hex(random_bytes(16));
+}
+
+function get_or_create_asset_qr_hash($koneksi, $id_unit_barang) {
+    $idUnit = intval($id_unit_barang);
+    if ($idUnit < 1 || !ensure_asset_qr_hash_schema($koneksi) || !asset_qr_hash_column_exists($koneksi)) {
+        return null;
+    }
+
+    $selectStmt = $koneksi->prepare("SELECT qr_hash FROM unit_barang WHERE id_unit_barang = ? LIMIT 1");
+    if (!$selectStmt) {
+        return null;
+    }
+
+    $selectStmt->bind_param('i', $idUnit);
+    $selectStmt->execute();
+    $row = $selectStmt->get_result()->fetch_assoc();
+    $existing = trim((string) ($row['qr_hash'] ?? ''));
+    if ($existing !== '') {
+        return $existing;
+    }
+
+    $updateStmt = $koneksi->prepare("UPDATE unit_barang SET qr_hash = ? WHERE id_unit_barang = ? AND (qr_hash IS NULL OR qr_hash = '')");
+    if (!$updateStmt) {
+        return null;
+    }
+
+    for ($i = 0; $i < 3; $i++) {
+        $newHash = generate_inventory_qr_hash();
+        $updateStmt->bind_param('si', $newHash, $idUnit);
+        if ($updateStmt->execute() && $updateStmt->affected_rows > 0) {
+            return $newHash;
+        }
+
+        $selectStmt->execute();
+        $rowRetry = $selectStmt->get_result()->fetch_assoc();
+        $existingRetry = trim((string) ($rowRetry['qr_hash'] ?? ''));
+        if ($existingRetry !== '') {
+            return $existingRetry;
+        }
+    }
+
+    return null;
+}
+
+function regenerate_qr_hash($koneksi, $id_unit_barang) {
+    $idUnit = intval($id_unit_barang);
+    if ($idUnit < 1 || !ensure_asset_qr_hash_schema($koneksi) || !asset_qr_hash_column_exists($koneksi)) {
+        return null;
+    }
+
+    $stmt = $koneksi->prepare("SELECT id_unit_barang FROM unit_barang WHERE id_unit_barang = ? LIMIT 1");
+    if (!$stmt) {
+        return null;
+    }
+    $stmt->bind_param('i', $idUnit);
+    $stmt->execute();
+    if (!$stmt->get_result()->fetch_assoc()) {
+        return null;
+    }
+
+    $updateStmt = $koneksi->prepare("UPDATE unit_barang SET qr_hash = ? WHERE id_unit_barang = ?");
+    if (!$updateStmt) {
+        return null;
+    }
+
+    for ($i = 0; $i < 5; $i++) {
+        $newHash = generate_inventory_qr_hash();
+        $updateStmt->bind_param('si', $newHash, $idUnit);
+        if ($updateStmt->execute()) {
+            return $newHash;
+        }
+    }
+
+    return null;
+}
+
+function build_asset_qr_value($id_unit_barang, $id_produk = null, $koneksi = null) {
+    // Prefer secure hash URL when qr_hash is available; fallback to legacy unit_id.
+    $safeUnitId = intval($id_unit_barang);
+    if ($safeUnitId < 1) {
+        return 'scan_barang.php?unit_id=0';
+    }
+
+    if ($koneksi !== null) {
+        $qrHash = get_or_create_asset_qr_hash($koneksi, $safeUnitId);
+        if (!empty($qrHash)) {
+            return 'scan_barang.php?q=' . rawurlencode($qrHash);
+        }
+    }
+
+    return 'scan_barang.php?unit_id=' . $safeUnitId;
+}
+
+function get_asset_qr_relative_path($id_unit_barang) {
+    return 'assets/qr/qr_unit_' . intval($id_unit_barang) . '.png';
+}
+
+function get_asset_qr_absolute_path($id_unit_barang) {
+    return __DIR__ . '/../' . get_asset_qr_relative_path($id_unit_barang);
+}
+
+function log_asset_qr_error($message, $context = []) {
+    $logDir = __DIR__ . '/../logs';
+    if (!is_dir($logDir) && !@mkdir($logDir, 0775, true) && !is_dir($logDir)) {
+        return false;
+    }
+
+    $logFile = $logDir . '/qr_generation.log';
+    $line = '[' . date('Y-m-d H:i:s') . '] ' . trim((string) $message);
+    if (!empty($context)) {
+        $encoded = json_encode($context, JSON_UNESCAPED_SLASHES);
+        if ($encoded !== false) {
+            $line .= ' | ' . $encoded;
+        }
+    }
+    $line .= PHP_EOL;
+
+    return @file_put_contents($logFile, $line, FILE_APPEND) !== false;
+}
+
+function ensure_asset_qr_file($id_unit_barang, $qrValue = null) {
+    $idUnit = intval($id_unit_barang);
+    if ($idUnit < 1) {
+        log_asset_qr_error('Invalid unit id for QR generation.', ['unit_id' => $id_unit_barang]);
+        return null;
+    }
+
+    $relativePath = get_asset_qr_relative_path($idUnit);
+    $absolutePath = get_asset_qr_absolute_path($idUnit);
+    $qrDirectory = dirname($absolutePath);
+
+    if (!is_dir($qrDirectory) && !@mkdir($qrDirectory, 0775, true) && !is_dir($qrDirectory)) {
+        log_asset_qr_error('Failed to create QR directory.', ['unit_id' => $idUnit, 'directory' => $qrDirectory]);
+        return null;
+    }
+
+    if (is_file($absolutePath) && @filesize($absolutePath) > 0) {
+        return $relativePath;
+    }
+
+    if ($qrValue === null || trim((string) $qrValue) === '') {
+        $qrValue = build_asset_qr_value($idUnit, null, $koneksi);
+    }
+
+    $qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=512x512&data=' . rawurlencode((string) $qrValue);
+    $context = stream_context_create([
+        'http' => [
+            'timeout' => 8,
+            'user_agent' => 'InventarisQR/1.0',
+        ],
+    ]);
+
+    $imageBytes = @file_get_contents($qrUrl, false, $context);
+    if ($imageBytes === false || strlen($imageBytes) < 100) {
+        log_asset_qr_error('Failed to download QR image bytes.', ['unit_id' => $idUnit, 'url' => $qrUrl]);
+        return null;
+    }
+
+    if (@file_put_contents($absolutePath, $imageBytes) === false) {
+        log_asset_qr_error('Failed to write QR image file.', ['unit_id' => $idUnit, 'path' => $absolutePath]);
+        return null;
+    }
+
+    return $relativePath;
+}
+
+function migrate_legacy_qr_urls_to_public($koneksi) {
+    static $done = false;
+    if ($done) {
+        return 0;
+    }
+    $done = true;
+
+    if (!schema_table_exists_now($koneksi, 'unit_barang')) {
+        return 0;
+    }
+
+    $qrColumn = get_asset_unit_qr_column($koneksi);
+    if ($qrColumn === null) {
+        return 0;
+    }
+
+     $sql = "SELECT id_unit_barang, id_produk, `$qrColumn` AS qr_value
+            FROM unit_barang
+            WHERE `$qrColumn` IS NOT NULL
+                  AND TRIM(`$qrColumn`) <> ''";
+    $result = $koneksi->query($sql);
+    if (!$result) {
+        return 0;
+    }
+
+    $updated = 0;
+    $updateStmt = $koneksi->prepare("UPDATE unit_barang SET `$qrColumn` = ? WHERE id_unit_barang = ?");
+    if (!$updateStmt) {
+        return 0;
+    }
+
+    while ($row = $result->fetch_assoc()) {
+        $unitId = intval($row['id_unit_barang'] ?? 0);
+        $produkId = nullable_int_id($row['id_produk'] ?? null);
+        if ($unitId < 1) {
+            continue;
+        }
+
+        if ($produkId === null) {
+            continue;
+        }
+
+        $newQr = build_asset_qr_value($unitId, $produkId, $koneksi);
+        $oldQr = trim((string) ($row['qr_value'] ?? ''));
+        if ($newQr !== $oldQr) {
+            $updateStmt->bind_param('si', $newQr, $unitId);
+            if ($updateStmt->execute()) {
+                $updated++;
+            }
+        }
+    }
+
+    return $updated;
 }
 
 function insert_asset_unit_row($koneksi, $productData, $unitCode, $operatorId = null, $note = 'Unit asset dibuat otomatis') {
@@ -1132,14 +1975,22 @@ function insert_asset_unit_row($koneksi, $productData, $unitCode, $operatorId = 
     }
 
     $idUnit = intval($koneksi->insert_id);
+    $qrValue = build_asset_qr_value($idUnit, $id_produk, $koneksi);
     $qrColumn = get_asset_unit_qr_column($koneksi);
     if ($qrColumn !== null && $idUnit > 0) {
-        $qrValue = build_asset_qr_value($idUnit);
         $updateQrStmt = $koneksi->prepare("UPDATE unit_barang SET `$qrColumn` = ? WHERE id_unit_barang = ?");
         if ($updateQrStmt) {
             $updateQrStmt->bind_param('si', $qrValue, $idUnit);
             $updateQrStmt->execute();
         }
+    }
+
+    if ($idUnit > 0 && ensure_asset_qr_file($idUnit, $qrValue) === null) {
+        log_asset_qr_error('Automatic QR generation failed after unit insert.', [
+            'unit_id' => $idUnit,
+            'produk_id' => $id_produk,
+            'source' => 'insert_asset_unit_row',
+        ]);
     }
 
     $locationName = get_gudang_name_by_id($koneksi, $productData['id_gudang'] ?? null);
@@ -1501,11 +2352,29 @@ function store_uploaded_inventory_document($fileField, $targetFolder, $prefix = 
         throw new Exception('Upload dokumen gagal diproses.');
     }
 
+    // Validasi ukuran file (maks 5 MB)
+    $maxBytes = 5 * 1024 * 1024;
+    if (($fileInfo['size'] ?? 0) > $maxBytes) {
+        throw new Exception('Ukuran dokumen melebihi batas maksimal 5 MB.');
+    }
+
     $allowedExtensions = ['pdf', 'jpg', 'jpeg', 'png', 'webp'];
+    $allowedMimes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
     $originalName = (string) ($fileInfo['name'] ?? '');
     $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
     if (!in_array($extension, $allowedExtensions, true)) {
         throw new Exception('Format dokumen tidak didukung. Gunakan PDF/JPG/PNG/WEBP.');
+    }
+
+    // Validasi MIME type dari konten file (bukan dari header HTTP)
+    $tmpPath = (string) ($fileInfo['tmp_name'] ?? '');
+    if ($tmpPath !== '' && function_exists('finfo_open')) {
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $detectedMime = $finfo ? finfo_file($finfo, $tmpPath) : null;
+        if ($finfo) finfo_close($finfo);
+        if ($detectedMime !== null && !in_array($detectedMime, $allowedMimes, true)) {
+            throw new Exception('Tipe file dokumen tidak valid (' . htmlspecialchars($detectedMime) . ').');
+        }
     }
 
     $baseDir = realpath(__DIR__ . '/..');
@@ -1534,6 +2403,91 @@ function store_uploaded_inventory_document($fileField, $targetFolder, $prefix = 
     return str_replace('\\', '/', $targetFolder . '/' . $fileName);
 }
 
+function store_uploaded_inventory_photo($fileField, $targetFolder, $prefix = 'IMG') {
+    if (!isset($_FILES[$fileField]) || !is_array($_FILES[$fileField])) {
+        return null;
+    }
+
+    $fileInfo = $_FILES[$fileField];
+    if (($fileInfo['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+        return null;
+    }
+
+    if (($fileInfo['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK) {
+        throw new Exception('Upload foto dokumentasi gagal diproses.');
+    }
+
+    // Validasi ukuran file (maks 5 MB)
+    $maxBytes = 5 * 1024 * 1024;
+    if (($fileInfo['size'] ?? 0) > $maxBytes) {
+        throw new Exception('Ukuran foto dokumentasi melebihi batas maksimal 5 MB.');
+    }
+
+    $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp'];
+    $allowedMimes = ['image/jpeg', 'image/png', 'image/webp'];
+    $originalName = (string) ($fileInfo['name'] ?? '');
+    $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+    if (!in_array($extension, $allowedExtensions, true)) {
+        throw new Exception('Format foto dokumentasi tidak didukung. Gunakan JPG/PNG/WEBP.');
+    }
+
+    // Validasi MIME type dari konten file dan verifikasi gambar valid
+    $tmpPath = (string) ($fileInfo['tmp_name'] ?? '');
+    if ($tmpPath !== '') {
+        if (function_exists('finfo_open')) {
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            $detectedMime = $finfo ? finfo_file($finfo, $tmpPath) : null;
+            if ($finfo) finfo_close($finfo);
+            if ($detectedMime !== null && !in_array($detectedMime, $allowedMimes, true)) {
+                throw new Exception('Tipe file foto tidak valid (' . htmlspecialchars($detectedMime) . ').');
+            }
+        }
+        // getimagesize memverifikasi bahwa file benar-benar data gambar yang valid
+        if (@getimagesize($tmpPath) === false) {
+            throw new Exception('File yang diunggah bukan gambar yang valid.');
+        }
+    }
+
+    $baseDir = realpath(__DIR__ . '/..');
+    if ($baseDir === false) {
+        throw new Exception('Direktori project tidak ditemukan.');
+    }
+
+    $targetFolder = trim(str_replace(['..\\', '../'], '', $targetFolder), "\\/");
+    $destinationDir = $baseDir . DIRECTORY_SEPARATOR . $targetFolder;
+    if (!ensure_directory_exists($destinationDir)) {
+        throw new Exception('Folder foto dokumentasi gagal dibuat.');
+    }
+
+    $safePrefix = preg_replace('/[^A-Za-z0-9_-]/', '', strtoupper((string) $prefix));
+    if ($safePrefix === '') {
+        $safePrefix = 'IMG';
+    }
+
+    $fileName = $safePrefix . '_' . date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.' . $extension;
+    $destinationPath = $destinationDir . DIRECTORY_SEPARATOR . $fileName;
+
+    if (!move_uploaded_file($fileInfo['tmp_name'], $destinationPath)) {
+        throw new Exception('Foto dokumentasi gagal disimpan ke server.');
+    }
+
+    return str_replace('\\', '/', $targetFolder . '/' . $fileName);
+}
+
+function decode_inventory_meta_json($value) {
+    if (is_array($value)) {
+        return $value;
+    }
+
+    $value = trim((string) ($value ?? ''));
+    if ($value === '') {
+        return [];
+    }
+
+    $decoded = json_decode($value, true);
+    return is_array($decoded) ? $decoded : [];
+}
+
 function get_stok_gudang_qty($koneksi, $id_gudang, $id_produk) {
     $stmt = $koneksi->prepare("SELECT jumlah_stok FROM stokgudang WHERE id_gudang = ? AND id_produk = ? LIMIT 1");
     if (!$stmt) {
@@ -1557,13 +2511,29 @@ function upsert_stok_gudang_quantity($koneksi, $id_gudang, $id_produk, $deltaQty
         return true;
     }
 
-    $currentQty = get_stok_gudang_qty($koneksi, $id_gudang, $id_produk);
-    $newQty = $currentQty + $deltaQty;
-    if ($newQty < 0) {
+    // Guard decrement atomically to prevent negative stock during concurrent requests.
+    if ($deltaQty < 0) {
+        $updateDecStmt = $koneksi->prepare(
+            "UPDATE stokgudang
+             SET jumlah_stok = jumlah_stok + ?
+             WHERE id_gudang = ? AND id_produk = ? AND jumlah_stok + ? >= 0"
+        );
+        if (!$updateDecStmt) {
+            return false;
+        }
+        $updateDecStmt->bind_param('iiii', $deltaQty, $id_gudang, $id_produk, $deltaQty);
+        if (!$updateDecStmt->execute()) {
+            return false;
+        }
+        if ($updateDecStmt->affected_rows > 0) {
+            return true;
+        }
+
+        // If no row updated, either row missing or insufficient stock.
         return false;
     }
 
-    $existsStmt = $koneksi->prepare("SELECT id_stok_gudang FROM stokgudang WHERE id_gudang = ? AND id_produk = ? LIMIT 1");
+    $existsStmt = $koneksi->prepare("SELECT id_stok_gudang, jumlah_stok FROM stokgudang WHERE id_gudang = ? AND id_produk = ? LIMIT 1 FOR UPDATE");
     if (!$existsStmt) {
         return false;
     }
@@ -1574,6 +2544,7 @@ function upsert_stok_gudang_quantity($koneksi, $id_gudang, $id_produk, $deltaQty
     $existsRow = $existsResult ? $existsResult->fetch_assoc() : null;
 
     if ($existsRow) {
+        $newQty = intval($existsRow['jumlah_stok']) + $deltaQty;
         $updateStmt = $koneksi->prepare("UPDATE stokgudang SET jumlah_stok = ? WHERE id_stok_gudang = ?");
         if (!$updateStmt) {
             return false;
@@ -1683,6 +2654,157 @@ function fetch_histori_logs($koneksi, $filters = [], $limit = 100) {
 
     $limit = max(1, intval($limit));
     $sql .= " ORDER BY hl.created_at DESC, hl.id DESC LIMIT ?";
+    $types .= 'i';
+    $values[] = $limit;
+
+    $stmt = $koneksi->prepare($sql);
+    if (!$stmt) {
+        return [];
+    }
+
+    $stmt->bind_param($types, ...$values);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $rows = [];
+    while ($result && ($row = $result->fetch_assoc())) {
+        $rows[] = $row;
+    }
+
+    return $rows;
+}
+
+function fetch_inventory_usage_report_rows($koneksi, $filters = [], $limit = 500) {
+    $reportParts = [];
+
+    if (schema_table_exists_now($koneksi, 'tracking_barang') && schema_table_exists_now($koneksi, 'produk')) {
+        $trackingUserCols = [];
+        foreach (['id_user_sesudah', 'id_user_terkait', 'id_user', 'user_id', 'id_user_changed', 'id_user_sebelum'] as $column) {
+            if (schema_has_column_now($koneksi, 'tracking_barang', $column)) {
+                $trackingUserCols[] = 'tb.' . $column;
+            }
+        }
+
+        $trackingStatusCols = [];
+        foreach (['status_sesudah', 'status', 'status_sebelum'] as $column) {
+            if (schema_has_column_now($koneksi, 'tracking_barang', $column)) {
+                $trackingStatusCols[] = 'tb.' . $column;
+            }
+        }
+
+        $trackingUserExpr = !empty($trackingUserCols) ? 'COALESCE(' . implode(', ', $trackingUserCols) . ')' : 'NULL';
+        $trackingStatusExpr = !empty($trackingStatusCols) ? 'COALESCE(' . implode(', ', $trackingStatusCols) . ', p.status)' : 'p.status';
+        $trackingDateCol = schema_find_existing_column($koneksi, 'tracking_barang', ['changed_at', 'created_at', 'updated_at']);
+        $trackingActionCol = schema_find_existing_column($koneksi, 'tracking_barang', ['activity_type', 'aktivitas']);
+        $trackingNoteCol = schema_find_existing_column($koneksi, 'tracking_barang', ['note', 'catatan']);
+
+        $reportParts[] = "
+            SELECT
+                p.id_produk AS barang_id,
+                p.kode_produk,
+                p.nama_produk,
+                $trackingUserExpr AS user_id,
+                COALESCE(NULLIF(u.nama, ''), NULLIF(u.username, ''), '-') AS nama_user,
+                $trackingStatusExpr AS status_barang,
+                COALESCE(NULLIF(tb.lokasi_sesudah, ''), NULLIF(tb.lokasi_sebelum, ''), NULLIF(p.lokasi_custom, ''), NULLIF(g.nama_gudang, ''), '-') AS gudang_lokasi,
+                " . ($trackingDateCol !== null ? ('tb.' . $trackingDateCol) : 'NULL') . " AS tanggal_aktivitas,
+                " . ($trackingActionCol !== null ? ('tb.' . $trackingActionCol) : 'NULL') . " AS aktivitas,
+                " . ($trackingNoteCol !== null ? ('tb.' . $trackingNoteCol) : 'NULL') . " AS catatan,
+                'tracking_barang' AS sumber
+            FROM tracking_barang tb
+            INNER JOIN produk p ON tb.id_produk = p.id_produk
+            LEFT JOIN gudang g ON p.id_gudang = g.id_gudang
+            LEFT JOIN user u ON u.id_user = $trackingUserExpr
+        ";
+    }
+
+    if (schema_table_exists_now($koneksi, 'riwayat_unit_barang') && schema_table_exists_now($koneksi, 'unit_barang') && schema_table_exists_now($koneksi, 'produk')) {
+        $unitActivityCol = schema_find_existing_column($koneksi, 'riwayat_unit_barang', ['aktivitas', 'activity_type']);
+        $unitNoteCol = schema_find_existing_column($koneksi, 'riwayat_unit_barang', ['catatan', 'note']);
+        $unitDateCol = schema_find_existing_column($koneksi, 'riwayat_unit_barang', ['created_at', 'changed_at', 'updated_at']);
+
+        $unitUserCols = [];
+        foreach (['id_user_terkait', 'id_user_sesudah', 'id_user', 'user_id', 'id_user_changed', 'id_user_sebelum'] as $column) {
+            if (schema_has_column_now($koneksi, 'riwayat_unit_barang', $column)) {
+                $unitUserCols[] = 'hr.' . $column;
+            }
+        }
+
+        $unitStatusCols = [];
+        foreach (['status_sesudah', 'status', 'status_sebelum'] as $column) {
+            if (schema_has_column_now($koneksi, 'riwayat_unit_barang', $column)) {
+                $unitStatusCols[] = 'hr.' . $column;
+            }
+        }
+
+        $unitUserExpr = !empty($unitUserCols) ? 'COALESCE(' . implode(', ', $unitUserCols) . ')' : 'NULL';
+        $unitStatusExpr = !empty($unitStatusCols) ? 'COALESCE(' . implode(', ', $unitStatusCols) . ', ub.status, p.status)' : 'COALESCE(ub.status, p.status)';
+
+        $reportParts[] = "
+            SELECT
+                p.id_produk AS barang_id,
+                p.kode_produk,
+                p.nama_produk,
+                $unitUserExpr AS user_id,
+                COALESCE(NULLIF(u.nama, ''), NULLIF(u.username, ''), '-') AS nama_user,
+                $unitStatusExpr AS status_barang,
+                COALESCE(NULLIF(hr.lokasi_sesudah, ''), NULLIF(hr.lokasi_sebelum, ''), NULLIF(ub.lokasi_custom, ''), NULLIF(g.nama_gudang, ''), '-') AS gudang_lokasi,
+                " . ($unitDateCol !== null ? ('hr.' . $unitDateCol) : 'NULL') . " AS tanggal_aktivitas,
+                " . ($unitActivityCol !== null ? ('hr.' . $unitActivityCol) : 'NULL') . " AS aktivitas,
+                " . ($unitNoteCol !== null ? ('hr.' . $unitNoteCol) : 'NULL') . " AS catatan,
+                'riwayat_unit_barang' AS sumber
+            FROM riwayat_unit_barang hr
+            INNER JOIN unit_barang ub ON hr.id_unit_barang = ub.id_unit_barang
+            INNER JOIN produk p ON ub.id_produk = p.id_produk
+            LEFT JOIN gudang g ON ub.id_gudang = g.id_gudang
+            LEFT JOIN user u ON u.id_user = $unitUserExpr
+        ";
+    }
+
+    if (empty($reportParts)) {
+        return [];
+    }
+
+    $sql = "SELECT * FROM (" . implode(" UNION ALL ", $reportParts) . ") usage_report WHERE 1 = 1";
+    $types = '';
+    $values = [];
+
+    $filterUserId = nullable_int_id($filters['user_id'] ?? null);
+    if ($filterUserId !== null) {
+        $sql .= " AND usage_report.user_id = ?";
+        $types .= 'i';
+        $values[] = $filterUserId;
+    }
+
+    $filterBarangId = nullable_int_id($filters['barang_id'] ?? null);
+    if ($filterBarangId !== null) {
+        $sql .= " AND usage_report.barang_id = ?";
+        $types .= 'i';
+        $values[] = $filterBarangId;
+    }
+
+    $filterStatus = strtolower(trim((string) ($filters['status_barang'] ?? '')));
+    if ($filterStatus !== '') {
+        $sql .= " AND LOWER(TRIM(COALESCE(usage_report.status_barang, ''))) = ?";
+        $types .= 's';
+        $values[] = $filterStatus;
+    }
+
+    $tanggalDari = trim((string) ($filters['tanggal_dari'] ?? ''));
+    if ($tanggalDari !== '') {
+        $sql .= " AND DATE(usage_report.tanggal_aktivitas) >= ?";
+        $types .= 's';
+        $values[] = $tanggalDari;
+    }
+
+    $tanggalSampai = trim((string) ($filters['tanggal_sampai'] ?? ''));
+    if ($tanggalSampai !== '') {
+        $sql .= " AND DATE(usage_report.tanggal_aktivitas) <= ?";
+        $types .= 's';
+        $values[] = $tanggalSampai;
+    }
+
+    $limit = max(1, intval($limit));
+    $sql .= " ORDER BY usage_report.tanggal_aktivitas DESC, usage_report.barang_id DESC LIMIT ?";
     $types .= 'i';
     $values[] = $limit;
 
@@ -1967,6 +3089,322 @@ function ensure_priority_one_schema($koneksi) {
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci"
         );
     }
+
+    if (schema_table_exists_now($koneksi, 'produk') && !schema_has_column_now($koneksi, 'produk', 'dipinjam_oleh')) {
+        $koneksi->query("ALTER TABLE produk ADD COLUMN dipinjam_oleh INT NULL AFTER id_user");
+    }
+    if (schema_table_exists_now($koneksi, 'produk') && !schema_has_column_now($koneksi, 'produk', 'tanggal_pinjam')) {
+        $koneksi->query("ALTER TABLE produk ADD COLUMN tanggal_pinjam DATETIME NULL AFTER dipinjam_oleh");
+    }
+    if (schema_table_exists_now($koneksi, 'produk') && !schema_has_column_now($koneksi, 'produk', 'tanggal_kembali')) {
+        $koneksi->query("ALTER TABLE produk ADD COLUMN tanggal_kembali DATETIME NULL AFTER tanggal_pinjam");
+    }
+
+    if (!schema_table_exists_now($koneksi, 'perbaikan_barang')) {
+        $koneksi->query(
+            "CREATE TABLE perbaikan_barang (
+                id_perbaikan INT NOT NULL AUTO_INCREMENT,
+                id_produk INT NOT NULL,
+                id_unit_barang INT DEFAULT NULL,
+                tanggal_mulai DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                tanggal_selesai DATETIME DEFAULT NULL,
+                deskripsi TEXT DEFAULT NULL,
+                status ENUM('proses','selesai','tidak_dapat_diperbaiki') NOT NULL DEFAULT 'proses',
+                created_by INT DEFAULT NULL,
+                updated_by INT DEFAULT NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (id_perbaikan),
+                INDEX idx_perbaikan_produk (id_produk),
+                INDEX idx_perbaikan_unit (id_unit_barang),
+                INDEX idx_perbaikan_status (status),
+                INDEX idx_perbaikan_created_by (created_by),
+                INDEX idx_perbaikan_updated_by (updated_by)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci"
+        );
+    }
+
+    if (schema_table_exists_now($koneksi, 'produk')) {
+        if (!schema_index_exists_now($koneksi, 'produk', 'idx_produk_id_gudang') && schema_has_column_now($koneksi, 'produk', 'id_gudang')) {
+            $koneksi->query("ALTER TABLE produk ADD KEY idx_produk_id_gudang (id_gudang)");
+        }
+        if (!schema_index_exists_now($koneksi, 'produk', 'idx_produk_id_user') && schema_has_column_now($koneksi, 'produk', 'id_user')) {
+            $koneksi->query("ALTER TABLE produk ADD KEY idx_produk_id_user (id_user)");
+        }
+        if (!schema_index_exists_now($koneksi, 'produk', 'idx_produk_dipinjam_oleh') && schema_has_column_now($koneksi, 'produk', 'dipinjam_oleh')) {
+            $koneksi->query("ALTER TABLE produk ADD KEY idx_produk_dipinjam_oleh (dipinjam_oleh)");
+        }
+
+        if (schema_table_exists_now($koneksi, 'gudang') && schema_has_column_now($koneksi, 'produk', 'id_gudang')) {
+            $koneksi->query("UPDATE produk p LEFT JOIN gudang g ON p.id_gudang = g.id_gudang SET p.id_gudang = NULL WHERE p.id_gudang IS NOT NULL AND g.id_gudang IS NULL");
+            if (!schema_foreign_key_exists_now($koneksi, 'produk', 'fk_produk_gudang_foundation')) {
+                $koneksi->query("ALTER TABLE produk ADD CONSTRAINT fk_produk_gudang_foundation FOREIGN KEY (id_gudang) REFERENCES gudang(id_gudang) ON DELETE SET NULL ON UPDATE CASCADE");
+            }
+        }
+        if (schema_table_exists_now($koneksi, 'user') && schema_has_column_now($koneksi, 'produk', 'id_user')) {
+            $koneksi->query("UPDATE produk p LEFT JOIN user u ON p.id_user = u.id_user SET p.id_user = NULL WHERE p.id_user IS NOT NULL AND u.id_user IS NULL");
+            if (!schema_foreign_key_exists_now($koneksi, 'produk', 'fk_produk_user_foundation')) {
+                $koneksi->query("ALTER TABLE produk ADD CONSTRAINT fk_produk_user_foundation FOREIGN KEY (id_user) REFERENCES user(id_user) ON DELETE SET NULL ON UPDATE CASCADE");
+            }
+        }
+        if (schema_table_exists_now($koneksi, 'user') && schema_has_column_now($koneksi, 'produk', 'dipinjam_oleh')) {
+            $koneksi->query("UPDATE produk p LEFT JOIN user u ON p.dipinjam_oleh = u.id_user SET p.dipinjam_oleh = NULL WHERE p.dipinjam_oleh IS NOT NULL AND u.id_user IS NULL");
+            if (!schema_foreign_key_exists_now($koneksi, 'produk', 'fk_produk_dipinjam_oleh_foundation')) {
+                $koneksi->query("ALTER TABLE produk ADD CONSTRAINT fk_produk_dipinjam_oleh_foundation FOREIGN KEY (dipinjam_oleh) REFERENCES user(id_user) ON DELETE SET NULL ON UPDATE CASCADE");
+            }
+        }
+    }
+
+    if (schema_table_exists_now($koneksi, 'perbaikan_barang')) {
+        if (schema_table_exists_now($koneksi, 'produk') && !schema_foreign_key_exists_now($koneksi, 'perbaikan_barang', 'fk_perbaikan_produk_foundation')) {
+            $koneksi->query("ALTER TABLE perbaikan_barang ADD CONSTRAINT fk_perbaikan_produk_foundation FOREIGN KEY (id_produk) REFERENCES produk(id_produk) ON DELETE CASCADE ON UPDATE CASCADE");
+        }
+        if (schema_table_exists_now($koneksi, 'unit_barang') && schema_has_column_now($koneksi, 'perbaikan_barang', 'id_unit_barang') && !schema_foreign_key_exists_now($koneksi, 'perbaikan_barang', 'fk_perbaikan_unit_foundation')) {
+            $koneksi->query("ALTER TABLE perbaikan_barang ADD CONSTRAINT fk_perbaikan_unit_foundation FOREIGN KEY (id_unit_barang) REFERENCES unit_barang(id_unit_barang) ON DELETE SET NULL ON UPDATE CASCADE");
+        }
+        if (schema_table_exists_now($koneksi, 'user') && !schema_foreign_key_exists_now($koneksi, 'perbaikan_barang', 'fk_perbaikan_created_by_foundation')) {
+            $koneksi->query("ALTER TABLE perbaikan_barang ADD CONSTRAINT fk_perbaikan_created_by_foundation FOREIGN KEY (created_by) REFERENCES user(id_user) ON DELETE SET NULL ON UPDATE CASCADE");
+        }
+        if (schema_table_exists_now($koneksi, 'user') && !schema_foreign_key_exists_now($koneksi, 'perbaikan_barang', 'fk_perbaikan_updated_by_foundation')) {
+            $koneksi->query("ALTER TABLE perbaikan_barang ADD CONSTRAINT fk_perbaikan_updated_by_foundation FOREIGN KEY (updated_by) REFERENCES user(id_user) ON DELETE SET NULL ON UPDATE CASCADE");
+        }
+    }
+
+    if (schema_table_exists_now($koneksi, 'user')) {
+        $koneksi->query(
+            "CREATE OR REPLACE VIEW users AS
+             SELECT
+                id_user AS id,
+                nama,
+                username,
+                password,
+                role,
+                status,
+                kategori_user,
+                bidang_id AS bidang
+             FROM `user`"
+        );
+    }
+
+    if (schema_table_exists_now($koneksi, 'produk')) {
+        $koneksi->query(
+            "CREATE OR REPLACE VIEW barang AS
+             SELECT
+                p.id_produk AS id,
+                p.kode_produk AS kode_barang,
+                p.nama_produk AS nama,
+                p.deskripsi,
+                p.id_gudang AS gudang_id,
+                COALESCE(p.dipinjam_oleh, p.id_user) AS dipinjam_oleh,
+                p.tanggal_pinjam,
+                p.tanggal_kembali,
+                CASE
+                    WHEN LOWER(TRIM(COALESCE(p.status, ''))) IN ('dipinjam', 'sedang digunakan', 'digunakan') THEN 'dipinjam'
+                    WHEN LOWER(TRIM(COALESCE(p.status, ''))) IN ('rusak') THEN 'rusak'
+                    WHEN LOWER(TRIM(COALESCE(p.status, ''))) IN ('dalam perbaikan', 'perbaikan', 'diperbaiki') THEN 'diperbaiki'
+                    ELSE 'tersedia'
+                END AS status
+             FROM produk p"
+        );
+    }
+
+    if (schema_table_exists_now($koneksi, 'tracking_barang')) {
+        $logBarangUserCols = [];
+        foreach (['id_user_changed', 'id_user_sesudah', 'id_user_terkait', 'id_user', 'user_id', 'id_user_sebelum'] as $candidateColumn) {
+            if (schema_has_column_now($koneksi, 'tracking_barang', $candidateColumn)) {
+                $logBarangUserCols[] = 'tb.' . $candidateColumn;
+            }
+        }
+
+        $logBarangUserExpr = !empty($logBarangUserCols)
+            ? 'COALESCE(' . implode(', ', $logBarangUserCols) . ')'
+            : 'NULL';
+        $logBarangActionCol = schema_find_existing_column($koneksi, 'tracking_barang', ['activity_type', 'aktivitas']);
+        $logBarangDateCol = schema_find_existing_column($koneksi, 'tracking_barang', ['changed_at', 'created_at', 'updated_at']);
+        $logBarangNoteCol = schema_find_existing_column($koneksi, 'tracking_barang', ['note', 'catatan']);
+
+        $koneksi->query(
+            "CREATE OR REPLACE VIEW log_barang AS
+             SELECT
+                tb.id_tracking AS id,
+                tb.id_produk AS barang_id,
+                $logBarangUserExpr AS user_id,
+                " . ($logBarangActionCol !== null ? ('tb.' . $logBarangActionCol) : "NULL") . " AS aksi,
+                " . ($logBarangDateCol !== null ? ('tb.' . $logBarangDateCol) : "NULL") . " AS tanggal,
+                " . ($logBarangNoteCol !== null ? ('tb.' . $logBarangNoteCol) : "NULL") . " AS catatan
+             FROM tracking_barang tb"
+        );
+    }
+
+    if (schema_table_exists_now($koneksi, 'mutasi_barang') && schema_table_exists_now($koneksi, 'mutasi_barang_detail')) {
+        $koneksi->query(
+            "CREATE OR REPLACE VIEW mutasi AS
+             SELECT
+                d.id AS id,
+                d.produk_id AS barang_id,
+                h.gudang_asal_id AS dari_gudang,
+                h.gudang_tujuan_id AS ke_gudang,
+                h.tanggal_mutasi AS tanggal
+             FROM mutasi_barang_detail d
+             INNER JOIN mutasi_barang h ON h.id = d.mutasi_id"
+        );
+    }
+
+    if (schema_table_exists_now($koneksi, 'serah_terima_barang') && schema_table_exists_now($koneksi, 'serah_terima_detail')) {
+        $koneksi->query(
+            "CREATE OR REPLACE VIEW serah_terima AS
+             SELECT
+                d.id AS id,
+                d.produk_id AS barang_id,
+                h.pihak_penerima_user_id AS user_id,
+                h.tanggal_serah_terima AS tanggal,
+                h.status
+             FROM serah_terima_detail d
+             INNER JOIN serah_terima_barang h ON h.id = d.serah_terima_id"
+        );
+    }
+
+    if (schema_table_exists_now($koneksi, 'perbaikan_barang')) {
+        $koneksi->query(
+            "CREATE OR REPLACE VIEW perbaikan AS
+             SELECT
+                id_perbaikan AS id,
+                id_produk AS barang_id,
+                tanggal_mulai,
+                tanggal_selesai,
+                deskripsi,
+                status
+             FROM perbaikan_barang"
+        );
+    }
+}
+
+function ensure_priority_two_schema($koneksi) {
+    static $done = false;
+    static $isReady = false;
+
+    if ($done) {
+        return $isReady;
+    }
+    $done = true;
+
+    $schemaQueries = [
+        "CREATE TABLE IF NOT EXISTS mutasi_barang (
+            id INT NOT NULL AUTO_INCREMENT,
+            kode_mutasi VARCHAR(60) NOT NULL,
+            tanggal_mutasi DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            gudang_asal_id INT NOT NULL,
+            gudang_tujuan_id INT NOT NULL,
+            jenis_barang ENUM('asset','consumable','campuran') NOT NULL DEFAULT 'campuran',
+            catatan TEXT NULL,
+            dokumen_file VARCHAR(255) NULL,
+            status ENUM('draft','disetujui','selesai','dibatalkan') NOT NULL DEFAULT 'draft',
+            created_by INT NULL,
+            created_by_name VARCHAR(255) NOT NULL,
+            approved_by INT NULL,
+            approved_by_name VARCHAR(255) NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY uq_mutasi_barang_kode (kode_mutasi),
+            KEY idx_mutasi_barang_tanggal (tanggal_mutasi),
+            KEY idx_mutasi_barang_gudang_asal (gudang_asal_id),
+            KEY idx_mutasi_barang_gudang_tujuan (gudang_tujuan_id),
+            KEY idx_mutasi_barang_status (status),
+            KEY idx_mutasi_barang_created_by (created_by),
+            KEY idx_mutasi_barang_approved_by (approved_by)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+        "CREATE TABLE IF NOT EXISTS mutasi_barang_detail (
+            id INT NOT NULL AUTO_INCREMENT,
+            mutasi_id INT NOT NULL,
+            produk_id INT NOT NULL,
+            unit_barang_id INT NULL,
+            qty INT NOT NULL DEFAULT 1,
+            satuan_snapshot VARCHAR(50) NULL,
+            kondisi_sebelum VARCHAR(50) NULL,
+            kondisi_sesudah VARCHAR(50) NULL,
+            catatan_detail TEXT NULL,
+            PRIMARY KEY (id),
+            KEY idx_mutasi_barang_detail_mutasi (mutasi_id),
+            KEY idx_mutasi_barang_detail_produk (produk_id),
+            KEY idx_mutasi_barang_detail_unit (unit_barang_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+        "CREATE TABLE IF NOT EXISTS serah_terima_barang (
+            id INT NOT NULL AUTO_INCREMENT,
+            kode_serah_terima VARCHAR(60) NOT NULL,
+            tanggal_serah_terima DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            jenis_tujuan ENUM('user','lokasi','departemen') NOT NULL DEFAULT 'user',
+            pihak_penyerah_user_id INT NULL,
+            pihak_penyerah_nama VARCHAR(255) NOT NULL,
+            pihak_penerima_user_id INT NULL,
+            pihak_penerima_nama VARCHAR(255) NOT NULL,
+            gudang_asal_id INT NULL,
+            lokasi_tujuan VARCHAR(255) NULL,
+            catatan TEXT NULL,
+            dokumen_file VARCHAR(255) NULL,
+            status ENUM('aktif','dikembalikan','dibatalkan') NOT NULL DEFAULT 'aktif',
+            created_by INT NULL,
+            created_by_name VARCHAR(255) NOT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY uq_serah_terima_barang_kode (kode_serah_terima),
+            KEY idx_serah_terima_tanggal (tanggal_serah_terima),
+            KEY idx_serah_terima_status (status),
+            KEY idx_serah_terima_gudang_asal (gudang_asal_id),
+            KEY idx_serah_terima_penyerah (pihak_penyerah_user_id),
+            KEY idx_serah_terima_penerima (pihak_penerima_user_id),
+            KEY idx_serah_terima_created_by (created_by)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+        "CREATE TABLE IF NOT EXISTS serah_terima_detail (
+            id INT NOT NULL AUTO_INCREMENT,
+            serah_terima_id INT NOT NULL,
+            produk_id INT NOT NULL,
+            unit_barang_id INT NULL,
+            qty INT NOT NULL DEFAULT 1,
+            kondisi_serah VARCHAR(50) NOT NULL DEFAULT 'baik',
+            kondisi_kembali VARCHAR(50) NULL,
+            tanggal_kembali DATETIME NULL,
+            catatan_detail TEXT NULL,
+            PRIMARY KEY (id),
+            KEY idx_serah_terima_detail_header (serah_terima_id),
+            KEY idx_serah_terima_detail_produk (produk_id),
+            KEY idx_serah_terima_detail_unit (unit_barang_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+        "CREATE TABLE IF NOT EXISTS dokumen_transaksi (
+            id INT NOT NULL AUTO_INCREMENT,
+            ref_type ENUM('mutasi','handover','barang_masuk','barang_keluar') NOT NULL,
+            ref_id INT NOT NULL,
+            jenis_dokumen VARCHAR(100) NOT NULL DEFAULT 'lampiran',
+            file_path VARCHAR(255) NOT NULL,
+            uploaded_by INT NULL,
+            uploaded_by_name VARCHAR(255) NOT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY idx_dokumen_transaksi_ref (ref_type, ref_id),
+            KEY idx_dokumen_transaksi_uploaded_by (uploaded_by)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+    ];
+
+    foreach ($schemaQueries as $schemaQuery) {
+        $koneksi->query($schemaQuery);
+    }
+
+    $requiredTables = [
+        'mutasi_barang',
+        'mutasi_barang_detail',
+        'serah_terima_barang',
+        'serah_terima_detail',
+    ];
+
+    $isReady = true;
+    foreach ($requiredTables as $requiredTable) {
+        if (!schema_table_exists_now($koneksi, $requiredTable)) {
+            $isReady = false;
+            break;
+        }
+    }
+
+    return $isReady;
 }
 
 function log_activity($koneksi, $data) {
@@ -2301,10 +3739,11 @@ function fetch_mutasi_barang_detail_rows($koneksi, $mutasiId) {
     }
 
     $mutasiId = intval($mutasiId);
+    $unitCodeColumn = schema_find_existing_column($koneksi, 'unit_barang', ['serial_number', 'kode_unit']);
     $sql = "SELECT md.*,
                    p.kode_produk,
                    p.nama_produk,
-                   ub.serial_number AS kode_unit
+                   " . ($unitCodeColumn !== null ? ('ub.' . $unitCodeColumn) : 'NULL') . " AS kode_unit
             FROM mutasi_barang_detail md
             LEFT JOIN produk p ON md.produk_id = p.id_produk
             LEFT JOIN unit_barang ub ON md.unit_barang_id = ub.id_unit_barang
@@ -2377,10 +3816,11 @@ function fetch_serah_terima_detail_rows($koneksi, $serahTerimaId) {
     }
 
     $serahTerimaId = intval($serahTerimaId);
+    $unitCodeColumn = schema_find_existing_column($koneksi, 'unit_barang', ['serial_number', 'kode_unit']);
     $sql = "SELECT std.*,
                    p.kode_produk,
                    p.nama_produk,
-                   ub.serial_number AS kode_unit
+                   " . ($unitCodeColumn !== null ? ('ub.' . $unitCodeColumn) : 'NULL') . " AS kode_unit
             FROM serah_terima_detail std
             LEFT JOIN produk p ON std.produk_id = p.id_produk
             LEFT JOIN unit_barang ub ON std.unit_barang_id = ub.id_unit_barang
@@ -2401,7 +3841,62 @@ function fetch_serah_terima_detail_rows($koneksi, $serahTerimaId) {
     return $rows;
 }
 
+function get_latest_product_photo($koneksi, $id_produk) {
+    if (!schema_table_exists_now($koneksi, 'histori_log')) {
+        return null;
+    }
+
+    $id_produk = intval($id_produk);
+    if ($id_produk < 1) {
+        return null;
+    }
+
+    $query = "SELECT id, ref_type, user_name_snapshot, meta_json, created_at
+              FROM histori_log
+              WHERE produk_id = ?
+                AND meta_json IS NOT NULL";
+
+    if (PHP_VERSION_ID >= 50700) {
+        $query .= " AND JSON_EXTRACT(meta_json, '$.foto_dokumentasi') IS NOT NULL";
+    }
+
+    $query .= " ORDER BY created_at DESC LIMIT 1";
+
+    $stmt = $koneksi->prepare($query);
+    if (!$stmt) {
+        return null;
+    }
+
+    $stmt->bind_param('i', $id_produk);
+    if (!$stmt->execute()) {
+        return null;
+    }
+
+    $result = $stmt->get_result();
+    $row = $result ? $result->fetch_assoc() : null;
+
+    if (!$row) {
+        return null;
+    }
+
+    $metaJson = decode_inventory_meta_json($row['meta_json']);
+    $photoPath = trim((string) ($metaJson['foto_dokumentasi'] ?? ''));
+
+    if ($photoPath === '') {
+        return null;
+    }
+
+    return [
+        'photo_path' => $photoPath,
+        'created_at' => $row['created_at'],
+        'ref_type' => $row['ref_type'],
+        'actor_name' => $row['user_name_snapshot'],
+    ];
+}
+
 ensure_priority_one_schema($koneksi);
+ensure_priority_two_schema($koneksi);
+migrate_legacy_qr_urls_to_public($koneksi);
 
 if (session_status() === PHP_SESSION_ACTIVE && isset($_SESSION['role'])) {
     $_SESSION['role'] = normalize_user_role($_SESSION['role']);

@@ -13,8 +13,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-if (!schema_table_exists_now($koneksi, 'serah_terima_barang') || !schema_table_exists_now($koneksi, 'serah_terima_detail')) {
-    header('Location: ../index.php?page=serah_terima&error=Skema serah terima belum tersedia. Jalankan migration priority 2 terlebih dahulu.');
+if (!ensure_priority_two_schema($koneksi) || !schema_table_exists_now($koneksi, 'serah_terima_barang') || !schema_table_exists_now($koneksi, 'serah_terima_detail')) {
+    header('Location: ../index.php?page=serah_terima&error=Form serah terima belum siap diproses sepenuhnya. Silakan hubungi admin.');
     exit;
 }
 
@@ -23,10 +23,10 @@ $jenisTujuan = trim((string) ($_POST['jenis_tujuan'] ?? 'user'));
 $gudangAsalId = isset($_POST['gudang_asal_id']) && $_POST['gudang_asal_id'] !== '' ? intval($_POST['gudang_asal_id']) : null;
 $pihakPenyerahUserId = isset($_POST['pihak_penyerah_user_id']) && $_POST['pihak_penyerah_user_id'] !== '' ? intval($_POST['pihak_penyerah_user_id']) : null;
 $pihakPenerimaUserId = isset($_POST['pihak_penerima_user_id']) && $_POST['pihak_penerima_user_id'] !== '' ? intval($_POST['pihak_penerima_user_id']) : null;
-$pihakPenyerahNama = trim((string) ($_POST['pihak_penyerah_nama'] ?? ''));
-$pihakPenerimaNama = trim((string) ($_POST['pihak_penerima_nama'] ?? ''));
-$lokasiTujuan = trim((string) ($_POST['lokasi_tujuan'] ?? ''));
-$catatan = trim((string) ($_POST['catatan'] ?? ''));
+$pihakPenyerahNama = htmlspecialchars(trim((string) ($_POST['pihak_penyerah_nama'] ?? '')), ENT_QUOTES, 'UTF-8');
+$pihakPenerimaNama = htmlspecialchars(trim((string) ($_POST['pihak_penerima_nama'] ?? '')), ENT_QUOTES, 'UTF-8');
+$lokasiTujuan = htmlspecialchars(trim((string) ($_POST['lokasi_tujuan'] ?? '')), ENT_QUOTES, 'UTF-8');
+$catatan = htmlspecialchars(trim((string) ($_POST['catatan'] ?? '')), ENT_QUOTES, 'UTF-8');
 $createdBy = current_user_id();
 $createdByName = get_current_user_name($koneksi) ?? 'System';
 
@@ -37,6 +37,22 @@ if (!in_array($jenisTujuan, ['user', 'lokasi', 'departemen'], true)) {
 
 if ($gudangAsalId === null || !asset_unit_gudang_exists($koneksi, $gudangAsalId)) {
     header('Location: ../index.php?page=serah_terima&action=form&error=Gudang asal wajib dipilih.');
+    exit;
+}
+
+if ($jenisTujuan === 'user') {
+    if ($pihakPenerimaUserId === null || $pihakPenerimaUserId < 1) {
+        header('Location: ../index.php?page=serah_terima&action=form&error=User penerima wajib dipilih jika tujuan adalah user.');
+        exit;
+    }
+    if (!get_user_name_by_id($koneksi, $pihakPenerimaUserId)) {
+        header('Location: ../index.php?page=serah_terima&action=form&error=User penerima tidak valid.');
+        exit;
+    }
+}
+
+if ($jenisTujuan === 'lokasi' && $lokasiTujuan === '') {
+    header('Location: ../index.php?page=serah_terima&action=form&error=Lokasi tujuan wajib diisi jika tujuan adalah lokasi.');
     exit;
 }
 
@@ -55,6 +71,7 @@ if ($pihakPenyerahNama === '' || $pihakPenerimaNama === '') {
 
 try {
     $dokumenFile = store_uploaded_inventory_document('dokumen_serah_terima', 'uploads/dokumen_serah_terima', 'STB');
+    $fotoDokumentasi = store_uploaded_inventory_photo('foto_dokumentasi_serah_terima', 'uploads/foto_serah_terima', 'STB_FOTO');
 } catch (Exception $e) {
     header('Location: ../index.php?page=serah_terima&action=form&error=' . urlencode($e->getMessage()));
     exit;
@@ -78,7 +95,7 @@ if (is_array($produkIds)) {
             'produk_id' => $produkId,
             'qty' => $qty,
             'kondisi_serah' => trim((string) ($conditions[$index] ?? 'baik')),
-            'catatan_detail' => trim((string) ($detailNotes[$index] ?? '')),
+            'catatan_detail' => htmlspecialchars(trim((string) ($detailNotes[$index] ?? '')), ENT_QUOTES, 'UTF-8'),
         ];
     }
 }
@@ -98,7 +115,7 @@ if (is_array($selectedUnits)) {
         $assetItems[] = [
             'unit_barang_id' => $unitId,
             'kondisi_serah' => trim((string) ($assetConditions[$unitId] ?? 'baik')),
-            'catatan_detail' => trim((string) ($assetNotes[$unitId] ?? '')),
+            'catatan_detail' => htmlspecialchars(trim((string) ($assetNotes[$unitId] ?? '')), ENT_QUOTES, 'UTF-8'),
         ];
     }
 }
@@ -214,6 +231,8 @@ try {
                 'kode_serah_terima' => $kodeSerahTerima,
                 'jenis_tujuan' => $jenisTujuan,
                 'lokasi_tujuan' => $lokasiTujuanValue,
+                'kondisi' => $item['kondisi_serah'],
+                'foto_dokumentasi' => $fotoDokumentasi,
                 'catatan_detail' => $item['catatan_detail'],
             ],
         ]);
@@ -321,8 +340,16 @@ try {
                 'kode_serah_terima' => $kodeSerahTerima,
                 'jenis_tujuan' => $jenisTujuan,
                 'lokasi_tujuan' => $lokasiTujuanValue,
+                'kondisi' => $item['kondisi_serah'],
+                'foto_dokumentasi' => $fotoDokumentasi,
                 'catatan_detail' => $item['catatan_detail'],
             ],
+        ]);
+
+        sync_foundation_barang_from_units($koneksi, $unit['id_produk'], [
+            'activity_type' => 'pinjam',
+            'actor_user_id' => $createdBy,
+            'note' => 'Serah terima resmi ' . $kodeSerahTerima,
         ]);
     }
 
@@ -340,6 +367,7 @@ try {
             'jenis_tujuan' => $jenisTujuan,
             'lokasi_tujuan' => $lokasiTujuanValue,
             'dokumen_file' => $dokumenFile,
+            'foto_dokumentasi' => $fotoDokumentasi,
         ],
     ]);
 
@@ -351,6 +379,16 @@ try {
         if ($dokumenStmt) {
             $dokumenStmt->bind_param('isis', $serahTerimaId, $dokumenFile, $createdBy, $createdByName);
             $dokumenStmt->execute();
+        }
+    }
+    if ($fotoDokumentasi && schema_table_exists_now($koneksi, 'dokumen_transaksi')) {
+        $fotoStmt = $koneksi->prepare(
+            "INSERT INTO dokumen_transaksi (ref_type, ref_id, jenis_dokumen, file_path, uploaded_by, uploaded_by_name, created_at)
+             VALUES ('handover', ?, 'foto_dokumentasi_serah_terima', ?, ?, ?, NOW())"
+        );
+        if ($fotoStmt) {
+            $fotoStmt->bind_param('isis', $serahTerimaId, $fotoDokumentasi, $createdBy, $createdByName);
+            $fotoStmt->execute();
         }
     }
 
@@ -370,6 +408,7 @@ try {
             'pihak_penerima_nama' => $pihakPenerimaNama,
             'lokasi_tujuan' => $lokasiTujuanValue,
             'dokumen_file' => $dokumenFile,
+            'foto_dokumentasi' => $fotoDokumentasi,
         ],
     ]);
 

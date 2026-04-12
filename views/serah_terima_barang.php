@@ -1,5 +1,17 @@
 <?php
 $canManageInventory = inventory_user_can_manage();
+$rawErrorMessage = trim((string) ($_GET['error'] ?? ''));
+$errorAlertClass = 'alert alert-danger';
+$displayErrorMessage = $rawErrorMessage;
+
+if ($rawErrorMessage !== '') {
+    $normalizedError = strtolower($rawErrorMessage);
+    if (strpos($normalizedError, 'skema') !== false || strpos($normalizedError, 'migration priority 2') !== false) {
+        $errorAlertClass = 'alert alert-info';
+        $displayErrorMessage = 'Beberapa fitur dokumentasi belum aktif, namun proses tetap dapat dilanjutkan.';
+    }
+}
+
 $filterStatus = trim((string) ($_GET['status'] ?? ''));
 $filterJenisTujuan = trim((string) ($_GET['jenis_tujuan'] ?? ''));
 
@@ -23,8 +35,8 @@ $rows = fetch_serah_terima_rows($koneksi, [
     <?php if (!empty($_GET['success'])): ?>
     <div class="alert alert-success"><?= htmlspecialchars((string) $_GET['success']) ?></div>
     <?php endif; ?>
-    <?php if (!empty($_GET['error'])): ?>
-    <div class="alert alert-danger"><?= htmlspecialchars((string) $_GET['error']) ?></div>
+    <?php if ($displayErrorMessage !== ''): ?>
+    <div class="<?= htmlspecialchars($errorAlertClass) ?>\"><?= htmlspecialchars($displayErrorMessage) ?></div>
     <?php endif; ?>
 
     <form method="get" action="index.php" class="card card-body mb-4">

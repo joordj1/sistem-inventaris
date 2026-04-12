@@ -13,15 +13,21 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-if (!schema_table_exists_now($koneksi, 'mutasi_barang') || !schema_table_exists_now($koneksi, 'mutasi_barang_detail')) {
-    header('Location: ../index.php?page=mutasi_barang&error=Skema mutasi belum tersedia. Jalankan migration priority 2 terlebih dahulu.');
+$mutasiRate = inventory_rate_limit_check('mutasi_submit', 20, 60);
+if (!$mutasiRate['allowed']) {
+    header('Location: ../index.php?page=mutasi_barang&action=form&error=' . urlencode('Terlalu banyak permintaan mutasi. Coba lagi dalam ' . intval($mutasiRate['retry_after']) . ' detik.'));
+    exit;
+}
+
+if (!ensure_priority_two_schema($koneksi) || !schema_table_exists_now($koneksi, 'mutasi_barang') || !schema_table_exists_now($koneksi, 'mutasi_barang_detail')) {
+    header('Location: ../index.php?page=mutasi_barang&error=Form mutasi belum siap diproses sepenuhnya. Silakan hubungi admin.');
     exit;
 }
 
 $gudangAsalId = intval($_POST['gudang_asal_id'] ?? 0);
 $gudangTujuanId = intval($_POST['gudang_tujuan_id'] ?? 0);
 $tanggalMutasi = str_replace('T', ' ', trim((string) ($_POST['tanggal_mutasi'] ?? date('Y-m-d H:i:s'))));
-$catatan = trim((string) ($_POST['catatan'] ?? ''));
+$catatan = htmlspecialchars(trim((string) ($_POST['catatan'] ?? '')), ENT_QUOTES, 'UTF-8');
 $createdBy = current_user_id();
 $createdByName = get_current_user_name($koneksi) ?? 'System';
 
@@ -43,13 +49,14 @@ if (!asset_unit_gudang_exists($koneksi, $gudangAsalId) || !asset_unit_gudang_exi
 $consumableItems = [];
 $produkIds = $_POST['consumable_produk_id'] ?? [];
 $quantities = $_POST['consumable_qty'] ?? [];
+$consumableConditions = $_POST['consumable_kondisi_sesudah'] ?? [];
 $detailNotes = $_POST['consumable_catatan_detail'] ?? [];
 
 if (is_array($produkIds)) {
     foreach ($produkIds as $index => $produkIdRaw) {
         $produkId = intval($produkIdRaw);
         $qty = intval($quantities[$index] ?? 0);
-        $detailNote = trim((string) ($detailNotes[$index] ?? ''));
+        $detailNote = htmlspecialchars(trim((string) ($detailNotes[$index] ?? '')), ENT_QUOTES, 'UTF-8');
 
         if ($produkId < 1 || $qty <= 0) {
             continue;
@@ -58,6 +65,7 @@ if (is_array($produkIds)) {
         $consumableItems[] = [
             'produk_id' => $produkId,
             'qty' => $qty,
+            'kondisi_sesudah' => trim((string) ($consumableConditions[$index] ?? '')),
             'catatan_detail' => $detailNote,
         ];
     }
@@ -78,7 +86,7 @@ if (is_array($selectedUnits)) {
         $assetItems[] = [
             'unit_barang_id' => $unitId,
             'kondisi_sesudah' => trim((string) ($assetConditions[$unitId] ?? '')),
-            'catatan_detail' => trim((string) ($assetNotes[$unitId] ?? '')),
+            'catatan_detail' => htmlspecialchars(trim((string) ($assetNotes[$unitId] ?? '')), ENT_QUOTES, 'UTF-8'),
         ];
     }
 }
@@ -97,6 +105,7 @@ if (!empty($consumableItems) && empty($assetItems)) {
 
 try {
     $dokumenFile = store_uploaded_inventory_document('dokumen_mutasi', 'uploads/dokumen_mutasi', 'MUTASI');
+    $fotoDokumentasi = store_uploaded_inventory_photo('foto_dokumentasi_mutasi', 'uploads/foto_mutasi', 'MUTASI_FOTO');
 } catch (Exception $e) {
     header('Location: ../index.php?page=mutasi_barang&action=form&error=' . urlencode($e->getMessage()));
     exit;
@@ -177,7 +186,7 @@ try {
         $unitBarangId = null;
         $satuanSnapshot = $produk['satuan'] ?? null;
         $kondisiSebelum = $produk['kondisi'] ?? null;
-        $kondisiSesudah = $produk['kondisi'] ?? null;
+        $kondisiSesudah = $item['kondisi_sesudah'] !== '' ? $item['kondisi_sesudah'] : ($produk['kondisi'] ?? 'baik');
         $detailStmt->bind_param(
             'iiiissss',
             $mutasiId,
@@ -223,6 +232,8 @@ try {
                 'gudang_asal_id' => $gudangAsalId,
                 'gudang_tujuan_id' => $gudangTujuanId,
                 'satuan' => $produk['satuan'] ?? null,
+                'kondisi' => $kondisiSesudah,
+                'foto_dokumentasi' => $fotoDokumentasi,
                 'catatan_detail' => $item['catatan_detail'],
             ],
         ]);
@@ -315,8 +326,15 @@ try {
                 'gudang_tujuan_id' => $gudangTujuanId,
                 'kondisi_sebelum' => $unit['kondisi'] ?? null,
                 'kondisi_sesudah' => $kondisiSesudah,
+                'foto_dokumentasi' => $fotoDokumentasi,
                 'catatan_detail' => $item['catatan_detail'],
             ],
+        ]);
+
+        sync_foundation_barang_from_units($koneksi, $unit['id_produk'], [
+            'activity_type' => 'pindah',
+            'actor_user_id' => $createdBy,
+            'note' => 'Mutasi resmi ' . $kodeMutasi,
         ]);
     }
 
@@ -334,6 +352,7 @@ try {
             'gudang_tujuan_id' => $gudangTujuanId,
             'jenis_barang' => $jenisBarang,
             'dokumen_file' => $dokumenFile,
+            'foto_dokumentasi' => $fotoDokumentasi,
         ],
     ]);
 
@@ -345,6 +364,16 @@ try {
         if ($dokumenStmt) {
             $dokumenStmt->bind_param('isis', $mutasiId, $dokumenFile, $createdBy, $createdByName);
             $dokumenStmt->execute();
+        }
+    }
+    if ($fotoDokumentasi && schema_table_exists_now($koneksi, 'dokumen_transaksi')) {
+        $fotoStmt = $koneksi->prepare(
+            "INSERT INTO dokumen_transaksi (ref_type, ref_id, jenis_dokumen, file_path, uploaded_by, uploaded_by_name, created_at)
+             VALUES ('mutasi', ?, 'foto_dokumentasi_mutasi', ?, ?, ?, NOW())"
+        );
+        if ($fotoStmt) {
+            $fotoStmt->bind_param('isis', $mutasiId, $fotoDokumentasi, $createdBy, $createdByName);
+            $fotoStmt->execute();
         }
     }
 
@@ -363,6 +392,7 @@ try {
             'gudang_tujuan_id' => $gudangTujuanId,
             'jenis_barang' => $jenisBarang,
             'dokumen_file' => $dokumenFile,
+            'foto_dokumentasi' => $fotoDokumentasi,
         ],
     ]);
 
@@ -371,6 +401,7 @@ try {
     exit;
 } catch (Exception $e) {
     $koneksi->rollback();
+    log_event('ERROR', 'MUTASI', 'simpan_mutasi_barang gagal: ' . $e->getMessage());
     header('Location: ../index.php?page=mutasi_barang&action=form&error=' . urlencode($e->getMessage()));
     exit;
 }

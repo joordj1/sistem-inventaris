@@ -22,8 +22,13 @@ if (isset($_GET['id_kategori'])) {
         ]);
     } else {
         // Jika tidak ada produk terkait, lanjutkan penghapusan kategori
-        $deleteQuery = "DELETE FROM kategori WHERE id_kategori = $id_kategori";
-        if ($koneksi->query($deleteQuery) === TRUE) {
+        $deleteStmt = $koneksi->prepare("DELETE FROM kategori WHERE id_kategori = ?");
+        if (!$deleteStmt) {
+            echo json_encode(['success' => false, 'message' => 'Terjadi kesalahan saat menyiapkan penghapusan kategori.']);
+            exit;
+        }
+        $deleteStmt->bind_param('i', $id_kategori);
+        if ($deleteStmt->execute()) {
             echo json_encode(['success' => true]);
         } else {
             echo json_encode(['success' => false, 'message' => 'Terjadi kesalahan saat menghapus kategori.']);

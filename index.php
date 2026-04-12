@@ -2,6 +2,26 @@
 session_start();
 include 'koneksi/koneksi.php';
 
+// Legacy QR compatibility: allow old public scan URL pattern to redirect without login.
+if ((string) ($_GET['page'] ?? '') === 'unit_barang_info' && empty($_SESSION['id_user'])) {
+    $legacyUnitId = isset($_GET['id_unit_barang']) ? intval($_GET['id_unit_barang']) : 0;
+    if ($legacyUnitId > 0 && schema_table_exists_now($koneksi, 'unit_barang')) {
+        $stmtLegacyQr = $koneksi->prepare("SELECT id_unit_barang FROM unit_barang WHERE id_unit_barang = ? LIMIT 1");
+        if ($stmtLegacyQr) {
+            $stmtLegacyQr->bind_param('i', $legacyUnitId);
+            $stmtLegacyQr->execute();
+            $legacyResult = $stmtLegacyQr->get_result();
+            if ($legacyResult && $legacyResult->num_rows > 0) {
+                header('Location: scan_barang.php?unit_id=' . $legacyUnitId, true, 302);
+                exit;
+            }
+        }
+    }
+
+    header('Location: scan_barang.php?unit_id=0', true, 302);
+    exit;
+}
+
 require_auth_roles(['admin', 'petugas', 'user'], [
     'login_redirect' => 'login.php',
     'forbidden_redirect' => 'login.php',
@@ -26,6 +46,7 @@ $pageRoleMap = [
     'mutasi_barang' => ['admin', 'petugas', 'user'],
     'serah_terima' => ['admin', 'petugas', 'user'],
     'report_mutasi' => ['admin', 'petugas', 'user'],
+    'report_persediaan_user' => ['admin', 'petugas', 'user'],
     'histori_log' => ['admin', 'petugas', 'user'],
 ];
 ?>
@@ -46,6 +67,7 @@ $pageRoleMap = [
     
     <!-- Custom CSS -->
     <link rel="stylesheet" href="assets/css/style.css">
+    <meta name="csrf-token" content="<?= htmlspecialchars(generate_csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
 </head>
 
 <body class="app-shell">
@@ -89,6 +111,9 @@ $pageRoleMap = [
                 case 'report_mutasi':
                     include "pages/report_mutasi.php";
                     break;
+                case 'report_persediaan_user':
+                    include "pages/report_persediaan_user.php";
+                    break;
                 case 'histori_log':
                     include "pages/histori_log.php";
                     break;
@@ -126,6 +151,9 @@ $pageRoleMap = [
                     break;
                 case 'print_unit_qr':
                     include "views/print_unit_qr.php";
+                    break;
+                case 'print_mass_qr':
+                    include "views/print_mass_qr.php";
                     break;
                     
                 // menuju ke form
@@ -190,6 +218,67 @@ $pageRoleMap = [
 
 <!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+(function () {
+    var meta = document.querySelector('meta[name="csrf-token"]');
+    if (!meta) return;
+
+    var token = meta.getAttribute('content') || '';
+    if (!token) return;
+
+    function ensureFormToken(form) {
+        if (!form || !form.tagName || form.tagName.toLowerCase() !== 'form') return;
+        var method = (form.getAttribute('method') || 'get').toLowerCase();
+        if (method !== 'post') return;
+
+        var input = form.querySelector('input[name="csrf_token"]');
+        if (!input) {
+            input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'csrf_token';
+            form.appendChild(input);
+        }
+        input.value = token;
+    }
+
+    document.querySelectorAll('form').forEach(ensureFormToken);
+    document.addEventListener('submit', function (ev) {
+        ensureFormToken(ev.target);
+    }, true);
+
+    if (window.fetch) {
+        var originalFetch = window.fetch.bind(window);
+        window.fetch = function (input, init) {
+            init = init || {};
+            var method = String(init.method || 'GET').toUpperCase();
+            if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
+                var headers = new Headers(init.headers || {});
+                if (!headers.get('X-CSRF-Token')) {
+                    headers.set('X-CSRF-Token', token);
+                }
+                init.headers = headers;
+            }
+            return originalFetch(input, init);
+        };
+    }
+
+    var originalOpen = XMLHttpRequest.prototype.open;
+    var originalSend = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.open = function (method) {
+        this.__inventarisMethod = String(method || 'GET').toUpperCase();
+        return originalOpen.apply(this, arguments);
+    };
+    XMLHttpRequest.prototype.send = function () {
+        if (this.__inventarisMethod !== 'GET' && this.__inventarisMethod !== 'HEAD' && this.__inventarisMethod !== 'OPTIONS') {
+            try {
+                this.setRequestHeader('X-CSRF-Token', token);
+            } catch (e) {}
+        }
+        return originalSend.apply(this, arguments);
+    };
+})();
+</script>
 
 <!-- js -->
 <script src="assets/js/delete.js"></script>

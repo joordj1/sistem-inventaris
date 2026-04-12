@@ -17,7 +17,25 @@ if (!$unit) {
     exit;
 }
 
-$qrValue = $unit['kode_qrcode'];
+$qrColumn = get_asset_unit_qr_column($koneksi);
+$qrValue = build_asset_qr_value($unit['id_unit_barang'], $unit['id_produk'] ?? null, $koneksi);
+
+if ($qrColumn !== null) {
+    $storedQr = trim((string) ($unit[$qrColumn] ?? ''));
+    if ($storedQr !== $qrValue) {
+        $stmtUpdateQr = $koneksi->prepare("UPDATE unit_barang SET `$qrColumn` = ? WHERE id_unit_barang = ?");
+        if ($stmtUpdateQr) {
+            $stmtUpdateQr->bind_param('si', $qrValue, $unit['id_unit_barang']);
+            $stmtUpdateQr->execute();
+        }
+    }
+}
+
+$qrImagePath = ensure_asset_qr_file($unit['id_unit_barang'], $qrValue);
+if ($qrImagePath === null) {
+    $qrImagePath = get_asset_qr_relative_path($unit['id_unit_barang']);
+}
+$qrFallbackPath = 'assets/qr/qr_fallback.svg';
 ?>
 
 <!DOCTYPE html>
@@ -41,7 +59,7 @@ $qrValue = $unit['kode_qrcode'];
         <p><strong>Produk:</strong> <?= htmlspecialchars($unit['nama_produk_master'] ?? '-') ?></p>
         <p><strong>Serial:</strong> <?= htmlspecialchars($unit['serial_number'] ?? '-') ?></p>
         <?php if (!empty($qrValue)): ?>
-            <img src="https://chart.googleapis.com/chart?cht=qr&chs=300x300&chl=<?= urlencode($qrValue) ?>&choe=UTF-8" alt="QR Code" />
+            <img src="<?= htmlspecialchars($qrImagePath) ?>" alt="QR Code" onerror="this.onerror=null;this.src='<?= htmlspecialchars($qrFallbackPath) ?>';" style="width: 280px; max-width: 100%;" />
             <p><small><?= htmlspecialchars($qrValue) ?></small></p>
         <?php else: ?>
             <p>QR belum tersedia.</p>

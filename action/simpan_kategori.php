@@ -16,10 +16,16 @@ require_auth_roles(['admin', 'petugas'], [
     'forbidden_redirect' => '../index.php?page=kategori_barang',
 ]);
 
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
+    echo '<h3>Method Not Allowed</h3>';
+    exit;
+}
+
 // Cek apakah data dari form sudah dikirim
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // Ambil data dari form
-    $nama_kategori = $_POST['nama_ktgr'];
+    $nama_kategori = htmlspecialchars(trim((string) ($_POST['nama_ktgr'] ?? '')), ENT_QUOTES, 'UTF-8');
 
     // Validasi input (opsional)
     if (empty($nama_kategori)) {
@@ -77,7 +83,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 Swal.fire({
                     icon: 'error',
                     title: 'Gagal',
-                    text: 'Gagal menyimpan kategori: " . $koneksi->error . "',
+                    text: 'Gagal menyimpan kategori. Silakan coba lagi.',
                     confirmButtonText: 'OK'
                 }).then(() => {
                     window.location.href = '../index.php?page=tambah_kategori';

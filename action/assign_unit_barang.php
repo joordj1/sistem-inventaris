@@ -130,6 +130,12 @@ try {
         ],
     ]);
 
+    sync_foundation_barang_from_units($koneksi, $unit['id_produk'], [
+        'activity_type' => 'pinjam',
+        'actor_user_id' => $operator,
+        'note' => $note,
+    ]);
+
     $koneksi->commit();
 } catch (Exception $e) {
     $koneksi->rollback();

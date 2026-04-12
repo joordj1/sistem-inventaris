@@ -107,6 +107,12 @@ try {
                     'note' => 'Pengembalian dari serah terima ' . ($header['kode_serah_terima'] ?? ('#' . $serahTerimaId)),
                     'id_user_changed' => $operatorId,
                 ]);
+
+                sync_foundation_barang_from_units($koneksi, $produkId, [
+                    'activity_type' => 'kembali',
+                    'actor_user_id' => $operatorId,
+                    'note' => 'Pengembalian dari serah terima ' . ($header['kode_serah_terima'] ?? ('#' . $serahTerimaId)),
+                ]);
             }
         } else {
             $updateProdukStmt = $koneksi->prepare(

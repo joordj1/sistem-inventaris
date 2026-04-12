@@ -33,6 +33,23 @@ if (!$mutasi) {
 
 $detailRows = fetch_mutasi_barang_detail_rows($koneksi, $mutasiId);
 $historiRows = fetch_histori_logs($koneksi, ['ref_type' => 'mutasi', 'ref_id' => $mutasiId], 100);
+$documentationPhotos = [];
+foreach ($historiRows as $historiRow) {
+    $meta = decode_inventory_meta_json($historiRow['meta_json'] ?? null);
+    $photoPath = trim((string) ($meta['foto_dokumentasi'] ?? ''));
+    if ($photoPath === '') {
+        continue;
+    }
+
+    if (!isset($documentationPhotos[$photoPath])) {
+        $documentationPhotos[$photoPath] = [
+            'path' => $photoPath,
+            'tanggal' => $historiRow['created_at'] ?? null,
+            'kondisi' => $meta['kondisi'] ?? ($meta['kondisi_sesudah'] ?? null),
+            'deskripsi' => $historiRow['deskripsi'] ?? null,
+        ];
+    }
+}
 ?>
 
 <div class="container">
@@ -154,6 +171,28 @@ $historiRows = fetch_histori_logs($koneksi, ['ref_type' => 'mutasi', 'ref_id' =>
         </div>
     </div>
 
+    <?php if (!empty($documentationPhotos)): ?>
+    <div class="card mb-4">
+        <div class="card-header">Foto Dokumentasi Mutasi</div>
+        <div class="card-body">
+            <div class="row g-3">
+                <?php foreach ($documentationPhotos as $photo): ?>
+                <div class="col-md-4">
+                    <div class="border rounded p-3 h-100">
+                        <a href="<?= htmlspecialchars($photo['path']) ?>" target="_blank">
+                            <img src="<?= htmlspecialchars($photo['path']) ?>" alt="Foto dokumentasi mutasi" class="img-fluid rounded mb-2">
+                        </a>
+                        <div class="small text-muted"><?= htmlspecialchars($photo['tanggal'] ?? '-') ?></div>
+                        <div><strong>Kondisi:</strong> <?= htmlspecialchars($photo['kondisi'] ?? '-') ?></div>
+                        <div><?= htmlspecialchars($photo['deskripsi'] ?? '-') ?></div>
+                    </div>
+                </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+
     <div class="card">
         <div class="card-header">Histori Event Mutasi</div>
         <div class="card-body table-container overflowy">
@@ -164,22 +203,33 @@ $historiRows = fetch_histori_logs($koneksi, ['ref_type' => 'mutasi', 'ref_id' =>
                         <th>Event</th>
                         <th>Produk / Unit</th>
                         <th>Oleh</th>
+                        <th>Kondisi</th>
+                        <th>Foto</th>
                         <th>Deskripsi</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (!empty($historiRows)): ?>
                         <?php foreach ($historiRows as $histori): ?>
+                        <?php $meta = decode_inventory_meta_json($histori['meta_json'] ?? null); ?>
                         <tr>
                             <td><?= htmlspecialchars($histori['created_at'] ?? '-') ?></td>
                             <td><?= htmlspecialchars($histori['event_type'] ?? '-') ?></td>
                             <td><?= htmlspecialchars(($histori['produk_id'] ?? '-') . ' / ' . ($histori['unit_barang_id'] ?? '-')) ?></td>
                             <td><?= htmlspecialchars($histori['user_name_snapshot'] ?? ($histori['current_user_name'] ?? '-')) ?></td>
+                            <td><?= htmlspecialchars($meta['kondisi'] ?? ($meta['kondisi_sesudah'] ?? '-')) ?></td>
+                            <td>
+                                <?php if (!empty($meta['foto_dokumentasi'])): ?>
+                                <a href="<?= htmlspecialchars($meta['foto_dokumentasi']) ?>" target="_blank">Lihat Foto</a>
+                                <?php else: ?>
+                                -
+                                <?php endif; ?>
+                            </td>
                             <td><?= htmlspecialchars($histori['deskripsi'] ?? '-') ?></td>
                         </tr>
                         <?php endforeach; ?>
                     <?php else: ?>
-                    <tr><td colspan="5" class="text-center">Belum ada histori mutasi.</td></tr>
+                    <tr><td colspan="7" class="text-center">Belum ada histori mutasi.</td></tr>
                     <?php endif; ?>
                 </tbody>
             </table>

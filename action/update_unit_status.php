@@ -15,8 +15,22 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $id_unit = isset($_POST['id_unit_barang']) ? intval($_POST['id_unit_barang']) : 0;
 $new_status = isset($_POST['status']) ? trim($_POST['status']) : null;
-$note = isset($_POST['note']) ? trim($_POST['note']) : 'Update status unit asset';
+$note = isset($_POST['note']) ? trim($_POST['note']) : '';
+$vendor = isset($_POST['vendor']) ? trim($_POST['vendor']) : '';
+$estimasiSelesai = isset($_POST['estimasi_selesai']) ? trim($_POST['estimasi_selesai']) : '';
 $operator = isset($_SESSION['id_user']) ? intval($_SESSION['id_user']) : null;
+
+// Compose note from vendor/estimasi fields if provided
+if ($vendor !== '' || $estimasiSelesai !== '') {
+    $noteParts = [];
+    if ($note !== '') $noteParts[] = $note;
+    if ($vendor !== '') $noteParts[] = 'Vendor: ' . $vendor;
+    if ($estimasiSelesai !== '') $noteParts[] = 'Estimasi selesai: ' . $estimasiSelesai;
+    $note = implode(' | ', $noteParts);
+}
+if ($note === '') {
+    $note = 'Update status unit asset';
+}
 
 if (!$id_unit || !$new_status) {
     http_response_code(400);

@@ -90,17 +90,32 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-$id_produk = intval($_POST['id_produk']);
+$id_produk = intval($_POST['id_produk'] ?? 0);
 $activity_type = normalize_tracking_value($_POST['activity_type'] ?? '');
 $status_input = $_POST['status'] ?? '';
 $kondisi_input = $_POST['kondisi'] ?? '';
 $status_baru = normalize_unit_status($status_input);
 $kondisi_baru = normalize_tracking_kondisi($kondisi_input);
 $id_gudang_baru = isset($_POST['id_gudang']) && $_POST['id_gudang'] !== '' ? intval($_POST['id_gudang']) : null;
-$lokasi_custom_baru = isset($_POST['lokasi_custom']) && trim((string) $_POST['lokasi_custom']) !== '' ? $koneksi->real_escape_string(trim((string) $_POST['lokasi_custom'])) : null;
+$lokasi_custom_baru = isset($_POST['lokasi_custom']) && trim((string) $_POST['lokasi_custom']) !== '' ? $koneksi->real_escape_string(htmlspecialchars(trim((string) $_POST['lokasi_custom']), ENT_QUOTES, 'UTF-8')) : null;
 $id_user_baru = isset($_POST['id_user']) && $_POST['id_user'] !== '' ? intval($_POST['id_user']) : null;
-$note = isset($_POST['note']) && trim((string) $_POST['note']) !== '' ? $koneksi->real_escape_string(trim((string) $_POST['note'])) : null;
+$note = isset($_POST['note']) && trim((string) $_POST['note']) !== '' ? $koneksi->real_escape_string(htmlspecialchars(trim((string) $_POST['note']), ENT_QUOTES, 'UTF-8')) : null;
 $operator = $_SESSION['id_user'] ?? null;
+
+if ($id_produk <= 0) {
+    header('Location: ../index.php?page=data_produk&error=Produk tidak valid');
+    exit;
+}
+
+if ($activity_type === '') {
+    header('Location: ../index.php?page=produk_info&id_produk=' . $id_produk . '&error=Jenis aktivitas wajib dipilih');
+    exit;
+}
+
+if (trim((string) $status_input) === '') {
+    header('Location: ../index.php?page=produk_info&id_produk=' . $id_produk . '&error=Status baru tidak boleh kosong');
+    exit;
+}
 
 // Ambil data produk saat ini
 $produk = $koneksi->query("SELECT * FROM produk WHERE id_produk = $id_produk")->fetch_assoc();
@@ -108,6 +123,10 @@ if (!$produk) {
     header('Location: ../index.php?page=data_produk&error=produk_not_found');
     exit;
 }
+
+$related_user_id = $id_user_baru
+    ?? get_foundation_barang_borrower_id($produk)
+    ?? nullable_int_id($produk['id_user'] ?? null);
 
 $status_baru_produk = resolve_product_status_by_activity($activity_type)
     ?? normalize_product_status($status_input)
@@ -235,6 +254,13 @@ if ($produk['tipe_barang'] === 'asset') {
         exit;
     }
 
+    sync_foundation_barang_from_units($koneksi, $id_produk, [
+        'activity_type' => $activity_type,
+        'sync_perbaikan' => in_array($activity_type, ['perbaikan', 'kembali', 'rusak'], true),
+        'actor_user_id' => $operator,
+        'note' => $note,
+    ]);
+
     header('Location: ../index.php?page=produk_info&id_produk=' . $id_produk . '&success=tracking_updated');
     exit;
 }
@@ -261,6 +287,16 @@ try {
     $updateSql .= " WHERE id_produk = $id_produk";
     $koneksi->query($updateSql);
 
+    apply_foundation_barang_state($koneksi, $id_produk, [
+        'activity_type' => $activity_type,
+        'status' => $status_baru_produk,
+        'id_user' => $related_user_id,
+        'dipinjam_oleh' => $related_user_id,
+        'sync_perbaikan' => in_array($activity_type, ['perbaikan', 'kembali', 'rusak'], true),
+        'actor_user_id' => $operator,
+        'note' => $note,
+    ]);
+
     // Insert historis tracking
     log_tracking_history($koneksi, [
         'id_produk' => $id_produk,
@@ -272,8 +308,8 @@ try {
         'lokasi_sebelum' => $lokasi_sebelum,
         'lokasi_sesudah' => $lokasi_sesudah,
         'id_user_sebelum' => $produk['id_user'],
-        'id_user_sesudah' => $id_user_baru,
-        'id_user_terkait' => $id_user_baru,
+        'id_user_sesudah' => $activity_type === 'kembali' ? null : $related_user_id,
+        'id_user_terkait' => $related_user_id,
         'activity_type' => $activity_type,
         'note' => $note,
         'id_user_changed' => $operator
@@ -298,18 +334,24 @@ try {
             'lokasi_sebelum' => $lokasi_sebelum,
             'lokasi_sesudah' => $lokasi_sesudah,
             'id_user_sebelum' => $produk['id_user'],
-            'id_user_sesudah' => $id_user_baru,
+            'id_user_sesudah' => $activity_type === 'kembali' ? null : $related_user_id,
             'note' => $note,
         ],
     ]);
 
     if ($activity_type === 'pinjam') {
         $koneksi->query("UPDATE produk SET tersedia = 0 WHERE id_produk = $id_produk");
-        $koneksi->query("INSERT INTO peminjaman (id_produk, id_user, jumlah, id_gudang, tanggal_pinjam, status, id_user_created) VALUES ($id_produk, $id_user_baru, 1, " . ($id_gudang_baru ?? 'NULL') . ", CURDATE(), 'dipinjam', " . ($operator ?? 'NULL') . ")");
+        if ($related_user_id !== null) {
+            $koneksi->query("INSERT INTO peminjaman (id_produk, id_user, jumlah, id_gudang, tanggal_pinjam, status, id_user_created) VALUES ($id_produk, $related_user_id, 1, " . ($id_gudang_baru ?? 'NULL') . ", CURDATE(), 'dipinjam', " . ($operator ?? 'NULL') . ")");
+        }
     }
     if ($activity_type === 'kembali') {
         $koneksi->query("UPDATE produk SET tersedia = 1 WHERE id_produk = $id_produk");
-        $koneksi->query("UPDATE peminjaman SET status = 'kembali', tanggal_kembali_aktual = CURDATE() WHERE id_produk = $id_produk AND id_user = $id_user_baru AND status = 'dipinjam'");
+        if ($related_user_id !== null) {
+            $koneksi->query("UPDATE peminjaman SET status = 'kembali', tanggal_kembali_aktual = CURDATE() WHERE id_produk = $id_produk AND id_user = $related_user_id AND status = 'dipinjam'");
+        } else {
+            $koneksi->query("UPDATE peminjaman SET status = 'kembali', tanggal_kembali_aktual = CURDATE() WHERE id_produk = $id_produk AND status = 'dipinjam'");
+        }
     }
 
     $koneksi->commit();

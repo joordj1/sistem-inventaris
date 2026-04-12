@@ -54,5 +54,15 @@
                 </div>
             </a>
         </div>
+
+        <div class="col-md-6">
+            <a href="index.php?page=report_persediaan_user" class="text-decoration-none">
+                <div class="card bg-info text-white text-center">
+                    <i class="bi bi-person-lines-fill display-1"></i>
+                    <h5 class="mt-3">Report Barang per User</h5>
+                    <p class="small">Lihat aktivitas barang berdasarkan user, status, dan periode</p>
+                </div>
+            </a>
+        </div>
     </div>
 </div>

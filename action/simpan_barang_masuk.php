@@ -7,12 +7,39 @@ require_auth_roles(['admin', 'petugas'], [
     'forbidden_redirect' => '../index.php?page=barang_masuk',
 ]);
 
-$no_invoice = trim((string) ($_POST['no_invoice'] ?? ''));
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    header('Location: ../index.php?page=tambah_barang_masuk');
+    exit();
+}
+
+$no_invoice = htmlspecialchars(trim((string) ($_POST['no_invoice'] ?? '')), ENT_QUOTES, 'UTF-8');
 $id_produk = intval($_POST['kode_produk'] ?? 0);
+$id_gudang = intval($_POST['id_gudang'] ?? 0);
 $jumlah = $_POST['jumlah'] ?? 0;
 $tanggal = trim((string) ($_POST['tanggal'] ?? ''));
-$keterangan = trim((string) ($_POST['keterangan'] ?? ''));
+$keterangan = htmlspecialchars(trim((string) ($_POST['keterangan'] ?? '')), ENT_QUOTES, 'UTF-8');
 $harga_satuan = preg_replace('/[^0-9]/', '', (string) ($_POST['harga_satuan'] ?? ''));
+
+if ($no_invoice === '') {
+    header("Location: ../index.php?page=tambah_barang_masuk&error=No Invoice wajib diisi");
+    exit();
+}
+
+if ($id_gudang <= 0) {
+    header("Location: ../index.php?page=tambah_barang_masuk&error=Gudang wajib dipilih");
+    exit();
+}
+
+$gudangValid = $koneksi->query("SELECT id_gudang FROM gudang WHERE id_gudang = " . intval($id_gudang) . " LIMIT 1");
+if (!$gudangValid || $gudangValid->num_rows < 1) {
+    header("Location: ../index.php?page=tambah_barang_masuk&error=Gudang tidak valid");
+    exit();
+}
+
+if ($id_produk <= 0) {
+    header("Location: ../index.php?page=tambah_barang_masuk&error=Produk harus dipilih");
+    exit();
+}
 
 if ($harga_satuan === '' || intval($harga_satuan) <= 0) {
     header("Location: ../index.php?page=tambah_barang_masuk&error=Harga transaksi wajib diisi");
@@ -27,49 +54,90 @@ if (!is_numeric($jumlah) || intval($jumlah) <= 0) {
 $jumlah = intval($jumlah);
 
 // Validasi tipe item (hanya consumable boleh masuk stok)
-$produkBefore = $koneksi->query("SELECT kode_produk, tipe_barang, status, kondisi, lokasi_custom, id_gudang, id_user FROM produk WHERE id_produk = '$id_produk'")->fetch_assoc();
+$produkStmt = $koneksi->prepare("SELECT kode_produk, tipe_barang, status, kondisi, lokasi_custom, id_gudang, id_user FROM produk WHERE id_produk = ? LIMIT 1");
+if (!$produkStmt) {
+    header("Location: ../index.php?page=tambah_barang_masuk&error=Gagal memvalidasi produk");
+    exit();
+}
+$produkStmt->bind_param('i', $id_produk);
+$produkStmt->execute();
+$produkBefore = $produkStmt->get_result()->fetch_assoc();
 if (!$produkBefore || $produkBefore['tipe_barang'] !== 'consumable') {
-    header("Location: ../index.php?page=tambah_barang_masuk&error=Hanya produk consumable yang bisa diproses sebagai barang masuk");
+    header("Location: ../index.php?page=tambah_barang_masuk&error=Produk tidak valid");
     exit();
 }
 
 // Cek apakah No Invoice sudah ada
-$no_invoice_sql = $koneksi->real_escape_string($no_invoice);
 $tanggal_sql = $koneksi->real_escape_string($tanggal);
 $keterangan_sql = $koneksi->real_escape_string($keterangan);
 
-$cekInvoice = $koneksi->query("SELECT * FROM stoktransaksi WHERE no_invoice = '$no_invoice_sql'");
-if ($cekInvoice->num_rows > 0) {
+$cekInvoiceStmt = $koneksi->prepare("SELECT id_transaksi FROM stoktransaksi WHERE no_invoice = ? LIMIT 1");
+if (!$cekInvoiceStmt) {
+    header("Location: ../index.php?page=tambah_barang_masuk&error=Gagal memvalidasi invoice");
+    exit();
+}
+$cekInvoiceStmt->bind_param('s', $no_invoice);
+$cekInvoiceStmt->execute();
+$cekInvoice = $cekInvoiceStmt->get_result();
+if ($cekInvoice && $cekInvoice->num_rows > 0) {
     header("Location: ../index.php?page=tambah_barang_masuk&error=No Invoice sudah ada");
     exit();
 }
 
-// Tambahkan data barang masuk ke tabel stoktransaksi
-$query = "INSERT INTO stoktransaksi (no_invoice, id_produk, jumlah, harga_satuan, tanggal, keterangan, tipe_transaksi) 
-          VALUES ('$no_invoice_sql', '$id_produk', '$jumlah', '$harga_satuan', '$tanggal_sql', '$keterangan_sql', 'masuk')";
-$koneksi->query($query);
-$id_transaksi = $koneksi->insert_id;
+// === TRANSACTION: INSERT transaksi + UPDATE stok produk + UPDATE stokgudang ===
+$insertTransaksiStmt = $koneksi->prepare("INSERT INTO stoktransaksi (no_invoice, id_produk, jumlah, harga_satuan, tanggal, keterangan, tipe_transaksi) VALUES (?, ?, ?, ?, ?, ?, 'masuk')");
+if (!$insertTransaksiStmt) {
+    header("Location: ../index.php?page=tambah_barang_masuk&error=Gagal menyimpan transaksi masuk");
+    exit();
+}
+$insertTransaksiStmt->bind_param('siiiss', $no_invoice, $id_produk, $jumlah, $harga_satuan, $tanggal_sql, $keterangan_sql);
 
-// Update jumlah stok di tabel produk
-$koneksi->query("UPDATE produk SET jumlah_stok = jumlah_stok + $jumlah, status = 'tersedia', tersedia = 1, last_tracked_at = NOW() WHERE id_produk = '$id_produk'");
+$koneksi->begin_transaction();
+try {
+    if (!$insertTransaksiStmt->execute()) {
+        throw new \RuntimeException('Gagal menyimpan transaksi masuk.');
+    }
+    $id_transaksi = $koneksi->insert_id;
 
-if (!empty($produkBefore['id_gudang'])) {
+    // Update stok produk (prepared statement, bukan string interpolation)
+    $updProdukStmt = $koneksi->prepare(
+        "UPDATE produk SET jumlah_stok = jumlah_stok + ?, status = 'tersedia', tersedia = 1, id_gudang = ?, last_tracked_at = NOW() WHERE id_produk = ?"
+    );
+    if (!$updProdukStmt) {
+        throw new \RuntimeException('Gagal menyiapkan update stok produk.');
+    }
+    $updProdukStmt->bind_param('iii', $jumlah, $id_gudang, $id_produk);
+    $updProdukStmt->execute();
+
+    // Update stokgudang
     $stokGudangUpdate = $koneksi->prepare("UPDATE stokgudang SET jumlah_stok = jumlah_stok + ? WHERE id_produk = ? AND id_gudang = ?");
     if ($stokGudangUpdate) {
-        $stokGudangUpdate->bind_param('iii', $jumlah, $id_produk, $produkBefore['id_gudang']);
+        $stokGudangUpdate->bind_param('iii', $jumlah, $id_produk, $id_gudang);
         $stokGudangUpdate->execute();
         if ($stokGudangUpdate->affected_rows < 1) {
             $stokGudangInsert = $koneksi->prepare("INSERT INTO stokgudang (id_gudang, id_produk, jumlah_stok) VALUES (?, ?, ?)");
-            if ($stokGudangInsert) {
-                $stokGudangInsert->bind_param('iii', $produkBefore['id_gudang'], $id_produk, $jumlah);
-                $stokGudangInsert->execute();
+            if (!$stokGudangInsert) {
+                throw new \RuntimeException('Gagal menyiapkan insert stokgudang.');
             }
+            $stokGudangInsert->bind_param('iii', $id_gudang, $id_produk, $jumlah);
+            $stokGudangInsert->execute();
         }
     }
-}
 
-// catat tracking
-$produkAfter = $koneksi->query("SELECT kode_produk, status, kondisi, lokasi_custom, id_gudang, id_user FROM produk WHERE id_produk = '$id_produk'")->fetch_assoc();
+    $koneksi->commit();
+} catch (\Throwable $txErr) {
+    $koneksi->rollback();
+    log_event('ERROR', 'STOK', 'simpan_barang_masuk gagal: ' . $txErr->getMessage());
+    header("Location: ../index.php?page=tambah_barang_masuk&error=" . urlencode('Transaksi gagal disimpan. Silakan coba lagi.'));
+    exit();
+}
+// === END TRANSACTION ===
+
+// catat tracking (setelah commit)
+$produkAfterStmt = $koneksi->prepare("SELECT kode_produk, status, kondisi, lokasi_custom, id_gudang, id_user FROM produk WHERE id_produk = ? LIMIT 1");
+$produkAfterStmt->bind_param('i', $id_produk);
+$produkAfterStmt->execute();
+$produkAfter = $produkAfterStmt->get_result()->fetch_assoc();
 $operator = $_SESSION['id_user'] ?? null;
 $location = '';
 if ($produkAfter['id_gudang']) {

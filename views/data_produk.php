@@ -71,74 +71,96 @@ function resolveProductLocation($row, $assetLocationMap) {
 }
 
 $assetLocationMap = getAssetLocationMap($koneksi);
+$canManageInventory = in_array($_SESSION['role'] ?? '', ['admin', 'petugas'], true);
+$flash = consume_flash_message();
 ?>
 
-<!-- Kode HTML dan PHP Anda -->
-<h2>Data Produk</h2>
+<!-- Data Produk -->
 <style>
     .product-name { font-weight: 700; color: #1f2937; }
-    .product-meta { font-size: 0.9rem; color: #4b5563; }
-    .badge-type { font-size: 0.75rem; vertical-align: middle; }
-    .summary-chip { display: inline-block; margin: 2px 3px; padding: 3px 8px; font-size: 0.75rem; border-radius: 999px; background: #f3f4f6; color: #111827; }
-    .action-icon { margin: 0 6px; color: #6b7280; transition: color .2s; }
-    .action-icon:hover { color: #111827; }
-    .table thead th { text-transform: uppercase; font-size: 0.78rem; letter-spacing: .04em; }
-    .table td { vertical-align: middle; }
+    .product-meta { font-size: 0.78rem; color: #6b7280; }
+    .badge-type { font-size: 0.73rem; vertical-align: middle; }
+    .summary-chip { display: inline-block; margin: 2px 3px; padding: 2px 8px; font-size: 0.72rem; border-radius: 999px; background: #f1f5f9; color: #374151; border: 1px solid #e2e8f0; }
+    .action-icon { margin: 0 5px; color: #6b7280; transition: color .18s; font-size: 1.1rem; }
+    .action-icon:hover { color: #2563eb; }
+    .tbl-sortable thead th[data-sort] { cursor: pointer; user-select: none; white-space: nowrap; }
+    .tbl-sortable thead th[data-sort]:hover { background: #dde3ee; }
+    .tbl-sortable thead th[data-sort]::after { content: ' \2195'; opacity: 0.35; font-size: 0.7rem; }
+    .tbl-sortable thead th[data-sort].sort-asc::after { content: ' \2191'; opacity: 1; }
+    .tbl-sortable thead th[data-sort].sort-desc::after { content: ' \2193'; opacity: 1; }
+    .tbl-produk tbody tr:nth-child(odd) { background: #f8fafc; }
+    .tbl-produk tbody tr:hover { background: #eef2ff !important; }
+    .filter-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 14px; box-shadow: 0 1px 4px rgba(10,10,40,.06); }
+    .filter-bar select, .filter-bar input[type=text] { height: 38px; border-radius: 8px; border: 1px solid #cbd5e1; padding: 0 12px; font-size: 14px; background: #f8fafc; }
+    .filter-bar select:focus, .filter-bar input[type=text]:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,.15); }
+    .filter-bar .btn-search { height: 38px; padding: 0 18px; border-radius: 8px; font-size: 14px; font-weight: 600; }
+    @media print {
+        .no-print { display: none !important; }
+        body.printing-qr * { visibility: hidden; }
+        body.printing-qr #qr-print-area, body.printing-qr #qr-print-area * { visibility: visible; }
+        body.printing-qr #qr-print-area { position: absolute; top: 0; left: 0; width: 100%; }
+    }
 </style>
+
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <?php
-    // Query untuk mengambil data kategori dari tabel kategori
-    $sql_kategori = "SELECT * FROM kategori";
-    $result_kategori = $koneksi->query($sql_kategori);
-
-    // Mendapatkan filter kategori dari form
-    $selected_kategori = isset($_POST['kategori']) ? $_POST['kategori'] : '';
-    ?>
-
-    <form action="index.php?page=data_produk" method="post">
-        <label for="kategori">Pilih Kategori:</label>
-        <select name="kategori" id="kategori" class="form-select w-auto mt-2" onchange="this.form.submit()">
-            <option value="">Semua</option>
-            <?php
-            // Looping hasil query untuk membuat option pada select kategori
-            if ($result_kategori->num_rows > 0) {
-                while ($row_kategori = $result_kategori->fetch_assoc()) {
-                    $selected = ($row_kategori['id_kategori'] == $selected_kategori) ? 'selected' : '';
-                    echo '<option value="' . $row_kategori['id_kategori'] . '" ' . $selected . '>' . $row_kategori['nama_kategori'] . '</option>';
-                }
-            } else {
-                echo '<option value="">Kategori tidak tersedia</option>';
-            }
-            ?>
-        </select>
-    </form>
-
-    <form action="index.php" method="get" class="input-group" style="width: 200px;">
-        <input type="hidden" name="page" value="data_produk">
-        <input type="text" class="form-control" name="search" placeholder="Search by Kode" value="<?= isset($_GET['search']) ? $_GET['search'] : '' ?>">
-        <button class="btn btn-outline-secondary" type="submit"><i class="bi bi-search"></i></button>
-    </form>
+    <h4 class="mb-0 fw-bold">Data Produk</h4>
+    <div class="d-flex gap-2">
+        <?php if ($canManageInventory): ?>
+        <a href="index.php?page=tambah_produk" class="btn btn-primary btn-sm no-print"><i class="bi bi-plus-lg me-1"></i>Tambah Produk</a>
+        <?php endif; ?>
+        <button id="btn-print-qr" class="btn btn-outline-secondary btn-sm no-print" onclick="printSelectedQR()" style="display:none"><i class="bi bi-qr-code me-1"></i>Print QR Label</button>
+    </div>
 </div>
 
+<?php if ($flash && !empty($flash['message'])): ?>
+    <?php $flashClass = 'alert-info'; ?>
+    <?php if ($flash['type'] === 'success') $flashClass = 'alert-success'; ?>
+    <?php if ($flash['type'] === 'error') $flashClass = 'alert-danger'; ?>
+    <?php if ($flash['type'] === 'warning') $flashClass = 'alert-warning'; ?>
+    <div class="alert <?= htmlspecialchars($flashClass) ?> no-print"><?= htmlspecialchars((string) $flash['message']) ?></div>
+<?php endif; ?>
+
+<!-- Filter Bar -->
+<?php
+$sql_kategori = "SELECT * FROM kategori ORDER BY nama_kategori ASC";
+$result_kategori = $koneksi->query($sql_kategori);
+$selected_kategori = isset($_GET['kategori']) ? intval($_GET['kategori']) : '';
+?>
+<form action="index.php" method="get" class="filter-bar mb-3 no-print">
+    <input type="hidden" name="page" value="data_produk">
+    <select name="kategori" style="min-width:150px">
+        <option value="">Semua Kategori</option>
+        <?php if ($result_kategori && $result_kategori->num_rows > 0): while ($row_kategori = $result_kategori->fetch_assoc()): ?>
+            <option value="<?= $row_kategori['id_kategori'] ?>" <?= ((int)$row_kategori['id_kategori'] === (int)$selected_kategori) ? 'selected' : '' ?>><?= htmlspecialchars($row_kategori['nama_kategori']) ?></option>
+        <?php endwhile; endif; ?>
+    </select>
+    <input type="text" name="search" placeholder="Cari nama barang / kode..." value="<?= htmlspecialchars($_GET['search'] ?? '') ?>" style="min-width:220px;flex:1">
+    <button type="submit" class="btn btn-primary btn-search"><i class="bi bi-search"></i></button>
+    <?php if (!empty($_GET['search']) || !empty($_GET['kategori'])): ?>
+    <a href="index.php?page=data_produk" class="btn btn-outline-secondary btn-search">Reset</a>
+    <?php endif; ?>
+</form>
+
+<div id="qr-print-area"></div>
 <div class="table-container overflowy">
-    <table class="table table-bordered table-success table-striped table-hover">
-        <thead class="text-center">
+    <table class="table table-bordered tbl-sortable tbl-produk" id="tbl-produk">
+        <thead class="text-center" style="background:#f1f5f9">
             <tr>
-                <th>No</th>
-                <th>Kode</th>
-                <th>Nama Barang</th>
+                <th style="width:36px"><input type="checkbox" id="chk-all" title="Pilih semua asset" onchange="toggleAllQR(this)"></th>
+                <th data-sort="num" style="width:42px">No</th>
+                <th data-sort="text">Kode</th>
+                <th data-sort="text">Nama Barang</th>
                 <th>Tipe</th>
                 <th>Kategori</th>
-                <th>Gudang / Lokasi</th>
+                <th>Lokasi</th>
                 <th>Ringkasan</th>
-                <th>Harga</th>
-                <th>Harga Total</th>
+                <th data-sort="num" class="text-end">Harga</th>
+                <th data-sort="num" class="text-end">Total</th>
                 <th>Aksi</th>
             </tr>
         </thead>
         <tbody>
 <?php 
-    $canManageInventory = inventory_user_can_manage();
     // Membuat query dasar untuk mendapatkan data produk dengan informasi gudang
     $query = "SELECT produk.id_produk, produk.kode_produk, produk.nama_produk, produk.tipe_barang, kategori.nama_kategori, 
                              COALESCE(NULLIF(produk.harga_default, 0), produk.harga_satuan, 0) AS harga_default_view,
@@ -159,7 +181,7 @@ $assetLocationMap = getAssetLocationMap($koneksi);
             if (isset($_GET['search']) && !empty($_GET['search'])) {
                 $search = $koneksi->real_escape_string($_GET['search']);
                 $query .= $selected_kategori ? " AND" : " WHERE";
-                $query .= " produk.kode_produk LIKE '%$search%'";
+                $query .= " (produk.kode_produk LIKE '%$search%' OR produk.nama_produk LIKE '%$search%')";
             }
             $result = $koneksi->query($query);
             $nomor = 1;
@@ -167,14 +189,18 @@ $assetLocationMap = getAssetLocationMap($koneksi);
 
         <?php if ($result->num_rows > 0): ?>
             <?php while ($row = $result->fetch_assoc()): ?>
+                <?php $isAsset = ($row['tipe_barang'] ?? 'consumable') === 'asset'; ?>
                 <tr>
+                    <td class="text-center"><input type="checkbox" class="chk-qr" data-id="<?= $row['id_produk'] ?>" data-name="<?= htmlspecialchars($row['nama_produk']) ?>" data-kode="<?= htmlspecialchars($row['kode_produk']) ?>" onchange="updateQRBtn()" <?= !$isAsset ? 'disabled title="Hanya produk asset yang dapat dicetak QR"' : '' ?>></td>
                     <td class="text-center"><?= $nomor++ ?></td>
                     <td><?= htmlspecialchars($row['kode_produk']) ?></td>
-                    <td><div class="product-name"><?= htmlspecialchars($row['nama_produk']) ?></div>
-                        <div class="product-meta">Kode: <?= htmlspecialchars($row['kode_produk']) ?></div></td>
-                    <td><span class="badge badge-type <?= ($row['tipe_barang'] ?? 'consumable') === 'asset' ? 'bg-primary text-white' : 'bg-success text-white' ?>"><?= ucfirst($row['tipe_barang'] ?? 'consumable') ?></span></td>
-                    <td><?= htmlspecialchars($row['nama_kategori'] ? $row['nama_kategori'] : 'Tidak ada') ?></td>
-                    <td><?= htmlspecialchars(resolveProductLocation($row, $assetLocationMap)) ?></td>
+                    <td>
+                        <div class="product-name"><?= htmlspecialchars($row['nama_produk']) ?></div>
+                        <div class="product-meta"><?= htmlspecialchars($row['nama_kategori'] ?? 'Tanpa kategori') ?></div>
+                    </td>
+                    <td class="text-center"><span class="badge badge-type <?= $isAsset ? 'bg-primary' : 'bg-success' ?>"><?= $isAsset ? 'Asset' : 'Consumable' ?></span></td>
+                    <td><?= htmlspecialchars($row['nama_kategori'] ? $row['nama_kategori'] : '-') ?></td>
+                    <td style="max-width:160px;font-size:0.82rem"><?= htmlspecialchars(resolveProductLocation($row, $assetLocationMap)) ?></td>
                     <td>
                         <?php if (($row['tipe_barang'] ?? 'consumable') === 'asset'): 
                             $stats = $koneksi->query("SELECT COUNT(id_unit_barang) AS total_unit,
@@ -210,20 +236,20 @@ $assetLocationMap = getAssetLocationMap($koneksi);
                             <span class="summary-chip"><?= ($row['tersedia'] ? 'Tersedia' : 'Tidak tersedia') ?></span>
                         <?php endif; ?>
                     </td>
-                    <td class="text-end"><?= formatRupiah($row['harga_default_view']) ?></td>
-                    <td class="text-end"><?= formatRupiah($row['total_nilai_view']) ?></td>
-                    <td class="text-center">
-                        <a href="index.php?page=produk_info&id_produk=<?= $row['id_produk'] ?>" class="action-icon" title="Lihat"><i class="bi-eye fs-4"></i></a>
+                    <td class="text-end" data-val="<?= $row['harga_default_view'] ?>"><?= formatRupiah($row['harga_default_view']) ?></td>
+                    <td class="text-end" data-val="<?= $row['total_nilai_view'] ?>"><?= formatRupiah($row['total_nilai_view']) ?></td>
+                    <td class="text-center no-print">
+                        <a href="index.php?page=produk_info&id_produk=<?= $row['id_produk'] ?>" class="action-icon" title="Lihat Detail"><i class="bi-eye"></i></a>
                         <?php if ($canManageInventory): ?>
-                        <a href="index.php?page=edit_produk&id_produk=<?= $row['id_produk'] ?>" class="action-icon" title="Edit"><i class="bi-pencil fs-4"></i></a>
-                        <a href="javascript:void(0);" onclick="confirmDeleteProduk(<?= $row['id_produk'] ?>)" class="action-icon text-danger" title="Hapus"><i class="bi-trash fs-4"></i></a>
+                        <a href="index.php?page=edit_produk&id_produk=<?= $row['id_produk'] ?>" class="action-icon" title="Edit"><i class="bi-pencil"></i></a>
+                        <a href="javascript:void(0);" onclick="confirmDeleteProduk(<?= $row['id_produk'] ?>)" class="action-icon text-danger" title="Hapus"><i class="bi-trash"></i></a>
                         <?php endif; ?>
                     </td>
                 </tr>
             <?php endwhile; ?>
         <?php else: ?>
             <tr>
-                <td colspan="10" class="text-center">Tidak ada data produk yang ditemukan.</td>
+                <td colspan="11" class="text-center py-4 text-muted"><i class="bi bi-inbox fs-4 d-block mb-1"></i>Tidak ada data produk yang ditemukan.</td>
             </tr>
         <?php endif; ?>
 
@@ -231,8 +257,60 @@ $assetLocationMap = getAssetLocationMap($koneksi);
     </table>
 </div>
 
-<?php if ($canManageInventory): ?>
-<a href="index.php?page=tambah_produk"><button class="btn btn-primary float-start mt-3">+ Tambah Produk Baru</button></a>
-<?php endif; ?>
-<a href="index.php?page=dashboard"><button class="btn btn-secondary float-end mt-3">Tutup</button></a>
-<div class="clearfix"></div>
+<div class="d-flex justify-content-between align-items-center mt-3 no-print">
+    <a href="index.php?page=dashboard" class="btn btn-secondary">Kembali</a>
+</div>
+
+<script>
+// ---- Table Sorting ----
+(function() {
+    const table = document.getElementById('tbl-produk');
+    if (!table) return;
+    const headers = table.querySelectorAll('thead th[data-sort]');
+    headers.forEach(function(th, idx) {
+        let sortDir = 0;
+        th.addEventListener('click', function() {
+            sortDir = (sortDir + 1) % 3; // 0=off,1=asc,2=desc
+            headers.forEach(h => h.classList.remove('sort-asc','sort-desc'));
+            if (sortDir === 1) th.classList.add('sort-asc');
+            else if (sortDir === 2) th.classList.add('sort-desc');
+            else { return; }
+            const tbody = table.querySelector('tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            const col = idx + 1; // offset for checkbox col
+            const type = th.getAttribute('data-sort');
+            rows.sort(function(a, b) {
+                const cellA = a.querySelector('td:nth-child(' + (col + 1) + ')');
+                const cellB = b.querySelector('td:nth-child(' + (col + 1) + ')');
+                if (!cellA || !cellB) return 0;
+                let va = cellA.getAttribute('data-val') || cellA.textContent.trim();
+                let vb = cellB.getAttribute('data-val') || cellB.textContent.trim();
+                if (type === 'num') { va = parseFloat(va.replace(/[^0-9.-]/g,'')) || 0; vb = parseFloat(vb.replace(/[^0-9.-]/g,'')) || 0; }
+                if (va < vb) return sortDir === 1 ? -1 : 1;
+                if (va > vb) return sortDir === 1 ? 1 : -1;
+                return 0;
+            });
+            rows.forEach(r => tbody.appendChild(r));
+        });
+    });
+})();
+
+// ---- Mass QR Print ----
+function toggleAllQR(master) {
+    document.querySelectorAll('.chk-qr:not(:disabled)').forEach(function(chk) {
+        chk.checked = master.checked;
+    });
+    updateQRBtn();
+}
+function updateQRBtn() {
+    const anyChecked = document.querySelectorAll('.chk-qr:checked').length > 0;
+    const btn = document.getElementById('btn-print-qr');
+    if (btn) btn.style.display = anyChecked ? '' : 'none';
+}
+function printSelectedQR() {
+    const checked = Array.from(document.querySelectorAll('.chk-qr:checked'));
+    if (!checked.length) return;
+    const ids = checked.map(c => 'id_produk[]=' + encodeURIComponent(c.getAttribute('data-id'))).join('&');
+    window.open('index.php?page=print_mass_qr&' + ids, '_blank');
+}
+</script>

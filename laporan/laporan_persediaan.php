@@ -1,13 +1,12 @@
 <?php
 include ("../koneksi/koneksi.php");
-// Fungsi untuk format Rupiah
+
 function formatRupiah($angka)
 {
     return 'Rp ' . number_format($angka, 0, ',', '.');
 }
 
-// Query untuk mengambil data produk
-$query = "SELECT p.kode_produk, p.nama_produk, k.nama_kategori AS kategori, 
+$query = "SELECT p.kode_produk, p.nama_produk, k.nama_kategori AS kategori,
                  g.nama_gudang, p.jumlah_stok AS stok,
                  COALESCE(NULLIF(p.harga_default, 0), p.harga_satuan, 0) AS harga_default,
                  (p.jumlah_stok * COALESCE(NULLIF(p.harga_default, 0), p.harga_satuan, 0)) AS nilai_total
@@ -20,13 +19,11 @@ $stmt = $koneksi->prepare($query);
 $stmt->execute();
 $result = $stmt->get_result();
 
-// Inisialisasi variabel untuk menghitung total
 $totalStok = 0;
 $totalHargaSatuan = 0;
 $totalNilai = 0;
 $dataProduk = [];
 
-// Loop untuk mengambil data
 while ($produk = $result->fetch_assoc()) {
     $dataProduk[] = $produk;
     $totalStok += $produk['stok'];
@@ -34,72 +31,89 @@ while ($produk = $result->fetch_assoc()) {
     $totalNilai += $produk['nilai_total'];
 }
 
+$periodeLabel = 'Semua tanggal s/d Sekarang';
+$printedAtLabel = date('d-m-Y H:i');
 ?>
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="id">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Laporan Persediaan</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.5.0/font/bootstrap-icons.min.css">
-
     <link rel="stylesheet" href="../assets/css/laporan.css">
+    <link rel="stylesheet" href="../assets/css/report-global.css">
 </head>
 <body>
 
-<div class="container my-5 print-area">
-    <h2 class="text-center mb-4">Laporan Persediaan</h2>
-
-    <div class="table-container">
-        <table class="table  table-bordered table-striped table-hover">
-            <thead>
-                <tr class="text-center bg-teal text-white">
-                    <th>No</th>
-                    <th>Kode Produk</th>
-                    <th>Nama Produk</th>
-                    <th>Kategori</th>
-                    <th>Gudang</th>
-                    <th>Stok</th>
-                    <th>Harga Satuan</th>
-                    <th>Nilai Total</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php
-                $nomor = 1;
-                foreach ($dataProduk as $produk) {
-                    echo "<tr>";
-                    echo "<td class='text-center'>{$nomor}</td>";
-                    echo "<td>{$produk['kode_produk']}</td>";
-                    echo "<td>{$produk['nama_produk']}</td>";
-                    echo "<td>{$produk['kategori']}</td>";
-                    echo "<td>{$produk['nama_gudang']}</td>";
-                    echo "<td class='text-end'>{$produk['stok']}</td>";
-                    echo "<td class='text-end'>" . formatRupiah($produk['harga_default']) . "</td>";
-                    echo "<td class='text-end'>" . formatRupiah($produk['nilai_total']) . "</td>";
-                    echo "</tr>";
-                    $nomor++;
-                }
-                ?>
-            </tbody>
-            <tfoot>
-                <tr>
-                    <th colspan="5" class="text-center">Total:</th>
-                    <th class="text-end"><?= $totalStok ?></th>
-                    <th class="text-end"><?= formatRupiah($totalHargaSatuan) ?></th>
-                    <th class="text-end"><?= formatRupiah($totalNilai) ?></th>
-                </tr>
-            </tfoot>
-        </table>
+<div class="container my-4 report-shell">
+    <div class="report-toolbar no-print">
+        <div>
+            <h2 class="mb-1">Laporan Persediaan</h2>
+            <p class="text-muted mb-0">Ringkasan stok seluruh produk per gudang.</p>
+        </div>
+        <div class="report-toolbar-actions">
+            <button type="button" class="btn btn-outline-primary" onclick="window.print()">Print</button>
+            <a href="../index.php?page=laporan" class="btn btn-secondary">Kembali</a>
+        </div>
     </div>
-</div>
 
-<div class="container footer-buttons mb-3">
-    <button onclick="window.print()" class="btn btn-primary">
-        <i class="bi bi-printer"></i> Cetak Laporan
-    </button>
+    <section class="report-paper">
+        <header class="report-header">
+            <h1>PT PLN Nusantara Power UP Brantas</h1>
+            <h2>Laporan Persediaan</h2>
+            <div class="report-meta">
+                <div><strong>Periode:</strong> <?= htmlspecialchars($periodeLabel) ?></div>
+                <div><strong>Total Baris:</strong> <?= count($dataProduk) ?></div>
+                <div><strong>Total Stok:</strong> <?= intval($totalStok) ?></div>
+            </div>
+        </header>
+
+        <div class="report-table-wrap">
+            <table class="report-table">
+                <thead>
+                    <tr>
+                        <th>No</th>
+                        <th>Kode Produk</th>
+                        <th>Nama Produk</th>
+                        <th>Kategori</th>
+                        <th>Gudang</th>
+                        <th>Stok</th>
+                        <th>Harga Satuan</th>
+                        <th>Nilai Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php $nomor = 1; ?>
+                    <?php foreach ($dataProduk as $produk): ?>
+                    <tr>
+                        <td class="text-center"><?= $nomor++ ?></td>
+                        <td><?= htmlspecialchars($produk['kode_produk']) ?></td>
+                        <td><?= htmlspecialchars($produk['nama_produk']) ?></td>
+                        <td><?= htmlspecialchars($produk['kategori']) ?></td>
+                        <td><?= htmlspecialchars($produk['nama_gudang']) ?></td>
+                        <td class="text-end"><?= intval($produk['stok']) ?></td>
+                        <td class="text-end"><?= htmlspecialchars(formatRupiah($produk['harga_default'])) ?></td>
+                        <td class="text-end"><?= htmlspecialchars(formatRupiah($produk['nilai_total'])) ?></td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <th colspan="5" class="text-center">Total:</th>
+                        <th class="text-end"><?= intval($totalStok) ?></th>
+                        <th class="text-end"><?= htmlspecialchars(formatRupiah($totalHargaSatuan)) ?></th>
+                        <th class="text-end"><?= htmlspecialchars(formatRupiah($totalNilai)) ?></th>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <footer class="report-footer">
+            <strong>Tanggal Cetak:</strong> <?= htmlspecialchars($printedAtLabel) ?>
+        </footer>
+    </section>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>

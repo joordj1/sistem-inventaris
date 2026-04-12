@@ -6,11 +6,28 @@ require_auth_roles(['admin', 'petugas'], [
     'forbidden_redirect' => '../index.php?page=data_gudang',
 ]);
 
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
+    header('Location: ../index.php?page=data_gudang');
+    exit;
+}
+
 // Mendapatkan data dari form
 $id_gudang = intval($_POST['id_gudang'] ?? 0);
 $nama_gudang = trim((string) ($_POST['nama_gudang'] ?? ''));
 $lokasi = trim((string) ($_POST['lokasi'] ?? ''));
-$before = $koneksi->query("SELECT nama_gudang, lokasi FROM gudang WHERE id_gudang = " . $id_gudang)->fetch_assoc();
+
+if ($id_gudang < 1 || $nama_gudang === '') {
+    header('Location: ../index.php?page=data_gudang&status=error');
+    exit;
+}
+
+$beforeResult = $koneksi->query('SELECT nama_gudang, lokasi FROM Gudang WHERE id_gudang = ' . $id_gudang);
+$before = $beforeResult ? $beforeResult->fetch_assoc() : null;
+if (!$before) {
+    header('Location: ../index.php?page=data_gudang&status=error');
+    exit;
+}
 
 $stmt = $koneksi->prepare("UPDATE gudang SET nama_gudang = ?, lokasi = ? WHERE id_gudang = ?");
 $stmt->bind_param('ssi', $nama_gudang, $lokasi, $id_gudang);
@@ -36,6 +53,8 @@ if ($stmt->execute()) {
     header("Location: ../index.php?page=data_gudang"); // Redirect ke halaman data gudang setelah update
     exit;
 } else {
-    echo "Error: " . $koneksi->error;
+    log_event('ERROR', 'GUDANG', 'update_gudang gagal id=' . $id_gudang . ' - ' . $stmt->error);
+    header('Location: ../index.php?page=data_gudang&status=error');
+    exit;
 }
 ?>

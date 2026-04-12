@@ -56,15 +56,21 @@ if (!$exec) {
 
 $id_unit = $stmt->insert_id;
 
-// Generate and persist unique QR value pointing to unit detail page
-$proto = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-$base = rtrim((isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : 'localhost') . dirname($_SERVER['REQUEST_URI']), '/\\');
-$qrValue = $proto . '://' . $base . '/index.php?page=unit_barang_info&id_unit_barang=' . $id_unit;
+// Generate and persist unique QR value pointing to public scan page.
+$qrValue = build_asset_qr_value($id_unit, $id_produk, $koneksi);
 
 $updateQrStmt = $koneksi->prepare("UPDATE unit_barang SET kode_qrcode = ? WHERE id_unit_barang = ?");
 if ($updateQrStmt) {
     $updateQrStmt->bind_param('si', $qrValue, $id_unit);
     $updateQrStmt->execute();
+}
+
+if (ensure_asset_qr_file($id_unit, $qrValue) === null) {
+    log_asset_qr_error('Automatic QR generation failed after unit insert.', [
+        'unit_id' => $id_unit,
+        'produk_id' => $id_produk,
+        'source' => 'simpan_unit_barang',
+    ]);
 }
 
 log_riwayat_unit_barang($koneksi, [

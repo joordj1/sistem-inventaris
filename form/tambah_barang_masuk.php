@@ -10,12 +10,19 @@ require_auth_roles(['admin', 'petugas'], [
 // Query untuk mengambil data produk beserta harga master default
 $queryProduk = "SELECT *, COALESCE(NULLIF(harga_default, 0), harga_satuan, 0) AS harga_master FROM produk";
 $resultProduk = $koneksi->query($queryProduk);
+$resultGudang = $koneksi->query("SELECT id_gudang, nama_gudang FROM gudang ORDER BY nama_gudang ASC");
 ?>
 
 <div class="form-container">
     <div class="form-header">
         <h5>Form Tambah Barang Masuk</h5>
     </div>
+    <?php if (!empty($_GET['error'])): ?>
+        <div class="alert alert-danger"><?= htmlspecialchars((string) $_GET['error']) ?></div>
+    <?php endif; ?>
+    <?php if (!empty($_GET['success'])): ?>
+        <div class="alert alert-success"><?= htmlspecialchars((string) $_GET['success']) ?></div>
+    <?php endif; ?>
     <form action="action/simpan_barang_masuk.php" method="POST">
         <div class="mb-3">
             <label for="no_invoice" class="form-label">No Invoice</label>
@@ -39,13 +46,24 @@ $resultProduk = $koneksi->query($queryProduk);
             <input type="text" class="form-control" id="nama_produk" name="nama_produk" placeholder="Nama Produk" readonly>
         </div>
         <div class="mb-3">
+            <label for="id_gudang" class="form-label">Gudang</label>
+            <select class="form-select" id="id_gudang" name="id_gudang" required>
+                <option value="">--Pilih Gudang--</option>
+                <?php if ($resultGudang): ?>
+                    <?php while ($gudang = $resultGudang->fetch_assoc()): ?>
+                        <option value="<?= (int) $gudang['id_gudang'] ?>"><?= htmlspecialchars((string) $gudang['nama_gudang']) ?></option>
+                    <?php endwhile; ?>
+                <?php endif; ?>
+            </select>
+        </div>
+        <div class="mb-3">
             <label for="harga_satuan" class="form-label">Harga Satuan Transaksi</label>
             <input type="text" class="form-control" id="harga_satuan" name="harga_satuan" placeholder="Harga transaksi barang masuk" required inputmode="numeric" oninput="formatHargaInput(this)">
             <small class="text-muted d-block">Harga disimpan ke tabel transaksi, tidak mengubah harga master produk.</small>
         </div>
         <div class="mb-3">
             <label for="jumlah" class="form-label">Jumlah</label>
-            <input type="number" class="form-control" id="jumlah" name="jumlah" placeholder="Jumlah Barang Masuk" required>
+            <input type="number" class="form-control" id="jumlah" name="jumlah" placeholder="Jumlah Barang Masuk" required min="1">
         </div>
         <div class="mb-3">
             <label for="tanggal" class="form-label">Tanggal</label>

@@ -16,6 +16,12 @@ $resultProduk = $koneksi->query($queryProduk);
     <div class="form-header">
         <h5>Form Tambah Barang Keluar</h5>
     </div>
+    <?php if (!empty($_GET['error'])): ?>
+        <div class="alert alert-danger"><?= htmlspecialchars((string) $_GET['error']) ?></div>
+    <?php endif; ?>
+    <?php if (!empty($_GET['success'])): ?>
+        <div class="alert alert-success"><?= htmlspecialchars((string) $_GET['success']) ?></div>
+    <?php endif; ?>
     <form action="action/simpan_barang_keluar.php" method="POST">
         <div class="mb-3">
             <label for="no_invoice" class="form-label">No Invoice</label>
