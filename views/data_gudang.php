@@ -1,14 +1,19 @@
 <?php
     $canManageInventory = inventory_user_can_manage();
-// Fungsi untuk menghitung total stok dari semua produk yang ada di gudang tertentu
+// Fungsi untuk menghitung total stok dari jumlah unit_barang yang ada di gudang tertentu
 function getTotalStokGudang($koneksi, $id_gudang) {
-    $sql = "SELECT SUM(p.jumlah_stok) AS total_stok
-            FROM Produk p
-            JOIN StokGudang sg ON p.id_produk = sg.id_produk
-            WHERE sg.id_gudang = $id_gudang";
-    $result = $koneksi->query($sql);
-    $row = $result->fetch_assoc();
-    return $row['total_stok'] ? $row['total_stok'] : 0;
+    $id_gudang = intval($id_gudang);
+    $sql = "SELECT COUNT(ub.id_unit_barang) AS total_stok
+            FROM unit_barang ub
+            WHERE ub.id_gudang = ? AND ub.deleted_at IS NULL";
+    $stmt = $koneksi->prepare($sql);
+    if (!$stmt) {
+        return 0;
+    }
+    $stmt->bind_param('i', $id_gudang);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    return intval($row['total_stok'] ?? 0);
 }
 
 // Mendapatkan kata kunci pencarian jika ada

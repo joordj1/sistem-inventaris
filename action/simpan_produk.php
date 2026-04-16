@@ -14,7 +14,64 @@ function redirect_with_flash($type, $message, $location) {
     exit();
 }
 
+function is_ajax_request() {
+    $requestedWith = strtolower((string) ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? ''));
+    $accept = strtolower((string) ($_SERVER['HTTP_ACCEPT'] ?? ''));
+    return $requestedWith === 'xmlhttprequest' || strpos($accept, 'application/json') !== false;
+}
+
+function respond_json($statusCode, array $payload) {
+    http_response_code($statusCode);
+    header('Content-Type: application/json');
+    echo json_encode($payload);
+    exit();
+}
+
+function redirect_with_form_state(array $errors, $message = '') {
+    $_SESSION['old_input_tambah_produk'] = $_POST;
+    $_SESSION['form_errors_tambah_produk'] = $errors;
+
+    if ($message !== '') {
+        set_flash_message('warning', $message);
+    }
+
+    header('Location: ../index.php?page=tambah_produk');
+    exit();
+}
+
+function validation_failed(array $errors, $message = 'Validasi form gagal.') {
+    if (is_ajax_request()) {
+        respond_json(422, [
+            'success' => false,
+            'type' => 'validation_error',
+            'message' => $message,
+            'errors' => $errors,
+        ]);
+    }
+
+    redirect_with_form_state($errors, $message);
+}
+
+function process_failed($message) {
+    if (is_ajax_request()) {
+        respond_json(500, [
+            'success' => false,
+            'type' => 'process_error',
+            'message' => $message,
+        ]);
+    }
+
+    redirect_with_flash('error', $message, '../index.php?page=tambah_produk');
+}
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    if (is_ajax_request()) {
+        respond_json(405, [
+            'success' => false,
+            'type' => 'invalid_method',
+            'message' => 'Permintaan tidak valid.',
+        ]);
+    }
     redirect_with_flash('warning', 'Permintaan tidak valid.', '../index.php?page=tambah_produk');
 }
 
@@ -36,55 +93,80 @@ $stok = filter_var($_POST['stok'] ?? null, FILTER_VALIDATE_INT);
 $hargaInput = preg_replace('/[^0-9]/', '', (string) ($_POST['harga'] ?? ''));
 $hargaSatuan = ($hargaInput === '') ? 0 : intval($hargaInput);
 
-if ($kodeProduk === '' || $namaProduk === '' || $kategoriId === false || $gudangId === false || $satuan === '') {
-    redirect_with_flash('error', 'Semua input wajib diisi: kode, nama, kategori, gudang, stok, satuan.', '../index.php?page=tambah_produk');
+$errors = [];
+
+if ($kodeProduk === '') {
+    $errors['code'] = 'Kode produk wajib diisi.';
+}
+
+if ($namaProduk === '') {
+    $errors['namaproduk'] = 'Nama produk wajib diisi.';
+}
+
+if ($kategoriId === false) {
+    $errors['kategori'] = 'Kategori wajib dipilih.';
+}
+
+if ($gudangId === false) {
+    $errors['gudang'] = 'Gudang wajib dipilih.';
 }
 
 if ($stok === false) {
-    redirect_with_flash('error', 'Stok harus berupa angka bulat.', '../index.php?page=tambah_produk');
+    $errors['stok'] = 'Stok harus berupa angka bulat.';
+} elseif ($stok < 1) {
+    $errors['stok'] = 'Stok minimal harus 1.';
 }
 
-if ($stok < 1) {
-    $_SESSION['error'] = 'Stok minimal harus 1';
-    redirect_with_flash('error', 'Stok minimal harus 1', '../index.php?page=tambah_produk');
+if ($satuan === '') {
+    $errors['satuan'] = 'Satuan wajib diisi.';
 }
 
 if ($hargaSatuan < 1) {
-    redirect_with_flash('error', 'Harga produk wajib diisi dan minimal 1.', '../index.php?page=tambah_produk');
+    $errors['harga'] = 'Harga produk wajib diisi dan minimal 1.';
 }
 
 if ($tipeBarang === null) {
-    redirect_with_flash('error', 'Tipe produk hanya boleh consumable atau asset.', '../index.php?page=tambah_produk');
+    $errors['tipe_barang'] = 'Tipe produk hanya boleh consumable atau asset.';
+}
+
+if (!empty($errors)) {
+    validation_failed($errors);
 }
 
 $cekKategoriStmt = $koneksi->prepare('SELECT id_kategori FROM kategori WHERE id_kategori = ? LIMIT 1');
 if (!$cekKategoriStmt) {
-    redirect_with_flash('error', 'Gagal memvalidasi kategori.', '../index.php?page=tambah_produk');
+    process_failed('Gagal memvalidasi kategori.');
 }
 $cekKategoriStmt->bind_param('i', $kategoriId);
 $cekKategoriStmt->execute();
 if (!$cekKategoriStmt->get_result()->fetch_assoc()) {
-    redirect_with_flash('error', 'Kategori yang dipilih tidak ditemukan.', '../index.php?page=tambah_produk');
+    validation_failed([
+        'kategori' => 'Kategori yang dipilih tidak ditemukan.',
+    ]);
 }
 
 $cekGudangStmt = $koneksi->prepare('SELECT id_gudang FROM gudang WHERE id_gudang = ? LIMIT 1');
 if (!$cekGudangStmt) {
-    redirect_with_flash('error', 'Gagal memvalidasi gudang.', '../index.php?page=tambah_produk');
+    process_failed('Gagal memvalidasi gudang.');
 }
 $cekGudangStmt->bind_param('i', $gudangId);
 $cekGudangStmt->execute();
 if (!$cekGudangStmt->get_result()->fetch_assoc()) {
-    redirect_with_flash('error', 'Gudang yang dipilih tidak ditemukan.', '../index.php?page=tambah_produk');
+    validation_failed([
+        'gudang' => 'Gudang yang dipilih tidak ditemukan.',
+    ]);
 }
 
 $cekKodeStmt = $koneksi->prepare('SELECT id_produk FROM produk WHERE kode_produk = ? LIMIT 1');
 if (!$cekKodeStmt) {
-    redirect_with_flash('error', 'Gagal memvalidasi kode produk.', '../index.php?page=tambah_produk');
+    process_failed('Gagal memvalidasi kode produk.');
 }
 $cekKodeStmt->bind_param('s', $kodeProduk);
 $cekKodeStmt->execute();
 if ($cekKodeStmt->get_result()->fetch_assoc()) {
-    redirect_with_flash('error', 'Kode produk sudah terdaftar. Gunakan kode lain.', '../index.php?page=tambah_produk');
+    validation_failed([
+        'code' => 'Kode produk sudah terdaftar. Gunakan kode lain.',
+    ]);
 }
 
 $gambarProduk = null;
@@ -95,14 +177,18 @@ if (!empty($_FILES['gambarproduk']['name'] ?? '')) {
     $allowedTypes = ['jpg', 'jpeg', 'png', 'gif'];
 
     if (!in_array($extension, $allowedTypes, true)) {
-        redirect_with_flash('error', 'Format gambar tidak didukung. Gunakan JPG, JPEG, PNG, atau GIF.', '../index.php?page=tambah_produk');
+        validation_failed([
+            'gambarproduk' => 'Format gambar tidak didukung. Gunakan JPG, JPEG, PNG, atau GIF.',
+        ]);
     }
 
     $safeName = 'PROD_' . date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.' . $extension;
     $targetPath = $targetDir . $safeName;
 
     if (!move_uploaded_file($fileInfo['tmp_name'], $targetPath)) {
-        redirect_with_flash('error', 'Upload gambar produk gagal.', '../index.php?page=tambah_produk');
+        validation_failed([
+            'gambarproduk' => 'Upload gambar produk gagal.',
+        ]);
     }
 
     $gambarProduk = $safeName;
@@ -163,15 +249,8 @@ try {
         $gudangName = $qGudangRow['nama_gudang'] ?? '';
     }
 
-    if ($tipeBarang === 'consumable') {
-        $insertStokStmt = $koneksi->prepare('INSERT INTO stokgudang (id_gudang, id_produk, jumlah_stok) VALUES (?, ?, ?)');
-        if (!$insertStokStmt) {
-            throw new Exception('Gagal menyiapkan stok gudang.');
-        }
-        $insertStokStmt->bind_param('iii', $gudangId, $lastProdukId, $stok);
-        if (!$insertStokStmt->execute()) {
-            throw new Exception('Stok gudang gagal disimpan.');
-        }
+    if (!upsert_stokgudang_additive($koneksi, $gudangId, $lastProdukId, $stok)) {
+        throw new Exception('Stok gudang gagal disinkronkan.');
     }
 
     if ($tipeBarang === 'asset' && $jumlahUnit > 0) {
@@ -232,5 +311,5 @@ try {
     redirect_with_flash('success', 'Data produk berhasil disimpan.', '../index.php?page=data_produk');
 } catch (Exception $e) {
     $koneksi->rollback();
-    redirect_with_flash('error', 'Gagal menyimpan produk: ' . $e->getMessage(), '../index.php?page=tambah_produk');
+    process_failed('Gagal menyimpan produk: ' . $e->getMessage());
 }

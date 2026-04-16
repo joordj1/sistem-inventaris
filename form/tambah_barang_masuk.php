@@ -13,6 +13,12 @@ $resultProduk = $koneksi->query($queryProduk);
 $resultGudang = $koneksi->query("SELECT id_gudang, nama_gudang FROM gudang ORDER BY nama_gudang ASC");
 ?>
 
+<style>
+.form-container { max-width: 900px; margin: auto; }
+.form-section { background: #fff; padding: 20px 24px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.05); }
+.section-title { font-weight: 600; margin-bottom: 15px; border-left: 4px solid #0d6efd; padding-left: 10px; font-size: 1.05rem; color: #1f2937; }
+</style>
+
 <div class="form-container">
     <div class="form-header">
         <h5>Form Tambah Barang Masuk</h5>
@@ -24,55 +30,77 @@ $resultGudang = $koneksi->query("SELECT id_gudang, nama_gudang FROM gudang ORDER
         <div class="alert alert-success"><?= htmlspecialchars((string) $_GET['success']) ?></div>
     <?php endif; ?>
     <form action="action/simpan_barang_masuk.php" method="POST">
-        <div class="mb-3">
-            <label for="no_invoice" class="form-label">No Invoice</label>
-            <input type="text" class="form-control" id="no_invoice" name="no_invoice" placeholder="Inputkan No Invoice" required>
+
+        <!-- SECTION 1: Informasi Transaksi -->
+        <div class="form-section">
+            <h5 class="section-title">Informasi Transaksi</h5>
+            <div class="row g-3">
+                <div class="col-md-6 mb-3">
+                    <label for="no_invoice" class="form-label">No Invoice</label>
+                    <input type="text" class="form-control" id="no_invoice" name="no_invoice" placeholder="Inputkan No Invoice" required>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="tanggal" class="form-label">Tanggal</label>
+                    <input type="date" class="form-control" id="tanggal" name="tanggal" required>
+                </div>
+            </div>
         </div>
-        <div class="mb-3">
-            <label for="kode_produk" class="form-label">Kode Produk</label>
-            <select class="form-select" id="kode_produk" name="kode_produk" required onchange="updateNamaProduk()">
-                <option value="">--Pilih Kode Produk--</option>
-                <?php while ($produk = $resultProduk->fetch_assoc()): ?>
-                    <?php if ($produk['tipe_barang'] !== 'consumable') continue; ?>
-                    <option value="<?php echo $produk['id_produk']; ?>" data-nama-produk="<?php echo $produk['nama_produk']; ?>" data-harga="<?php echo (int) round((float) ($produk['harga_master'] ?? 0)); ?>">
-                        <?php echo $produk['kode_produk'] . " - " . $produk['nama_produk']; ?>
-                    </option>
-                <?php endwhile; ?>
-            </select>
-            <small class="text-muted d-block">Hanya produk consumable ditampilkan di sini.</small>
+
+        <!-- SECTION 2: Informasi Produk -->
+        <div class="form-section">
+            <h5 class="section-title">Informasi Produk</h5>
+            <div class="row g-3">
+                <div class="col-md-6 mb-3">
+                    <label for="kode_produk" class="form-label">Kode Produk</label>
+                    <select class="form-select" id="kode_produk" name="kode_produk" required onchange="updateNamaProduk()">
+                        <option value="">--Pilih Kode Produk--</option>
+                        <?php while ($produk = $resultProduk->fetch_assoc()): ?>
+                            <?php if ($produk['tipe_barang'] !== 'consumable') continue; ?>
+                            <option value="<?php echo $produk['id_produk']; ?>" data-nama-produk="<?php echo $produk['nama_produk']; ?>" data-harga="<?php echo (int) round((float) ($produk['harga_master'] ?? 0)); ?>">
+                                <?php echo $produk['kode_produk'] . " - " . $produk['nama_produk']; ?>
+                            </option>
+                        <?php endwhile; ?>
+                    </select>
+                    <small class="text-muted d-block">Hanya produk consumable ditampilkan di sini.</small>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="nama_produk" class="form-label">Nama Produk</label>
+                    <input type="text" class="form-control" id="nama_produk" name="nama_produk" placeholder="Nama Produk" readonly>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="id_gudang" class="form-label">Gudang</label>
+                    <select class="form-select" id="id_gudang" name="id_gudang" required>
+                        <option value="">--Pilih Gudang--</option>
+                        <?php if ($resultGudang): ?>
+                            <?php while ($gudang = $resultGudang->fetch_assoc()): ?>
+                                <option value="<?= (int) $gudang['id_gudang'] ?>"><?= htmlspecialchars((string) $gudang['nama_gudang']) ?></option>
+                            <?php endwhile; ?>
+                        <?php endif; ?>
+                    </select>
+                </div>
+            </div>
         </div>
-        <div class="mb-3">
-            <label for="nama_produk" class="form-label">Nama Produk</label>
-            <input type="text" class="form-control" id="nama_produk" name="nama_produk" placeholder="Nama Produk" readonly>
+
+        <!-- SECTION 3: Detail Transaksi -->
+        <div class="form-section">
+            <h5 class="section-title">Detail Transaksi</h5>
+            <div class="row g-3">
+                <div class="col-md-6 mb-3">
+                    <label for="harga_satuan" class="form-label">Harga Satuan Transaksi</label>
+                    <input type="text" class="form-control" id="harga_satuan" name="harga_satuan" placeholder="Harga transaksi barang masuk" required inputmode="numeric" oninput="formatHargaInput(this)">
+                    <small class="text-muted d-block">Harga disimpan ke tabel transaksi, tidak mengubah harga master produk.</small>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="jumlah" class="form-label">Jumlah</label>
+                    <input type="number" class="form-control" id="jumlah" name="jumlah" placeholder="Jumlah Barang Masuk" required min="1">
+                </div>
+                <div class="col-md-12 mb-3">
+                    <label for="keterangan" class="form-label">Keterangan</label>
+                    <textarea class="form-control" id="keterangan" name="keterangan" placeholder="Keterangan" rows="3"></textarea>
+                </div>
+            </div>
         </div>
-        <div class="mb-3">
-            <label for="id_gudang" class="form-label">Gudang</label>
-            <select class="form-select" id="id_gudang" name="id_gudang" required>
-                <option value="">--Pilih Gudang--</option>
-                <?php if ($resultGudang): ?>
-                    <?php while ($gudang = $resultGudang->fetch_assoc()): ?>
-                        <option value="<?= (int) $gudang['id_gudang'] ?>"><?= htmlspecialchars((string) $gudang['nama_gudang']) ?></option>
-                    <?php endwhile; ?>
-                <?php endif; ?>
-            </select>
-        </div>
-        <div class="mb-3">
-            <label for="harga_satuan" class="form-label">Harga Satuan Transaksi</label>
-            <input type="text" class="form-control" id="harga_satuan" name="harga_satuan" placeholder="Harga transaksi barang masuk" required inputmode="numeric" oninput="formatHargaInput(this)">
-            <small class="text-muted d-block">Harga disimpan ke tabel transaksi, tidak mengubah harga master produk.</small>
-        </div>
-        <div class="mb-3">
-            <label for="jumlah" class="form-label">Jumlah</label>
-            <input type="number" class="form-control" id="jumlah" name="jumlah" placeholder="Jumlah Barang Masuk" required min="1">
-        </div>
-        <div class="mb-3">
-            <label for="tanggal" class="form-label">Tanggal</label>
-            <input type="date" class="form-control" id="tanggal" name="tanggal" required>
-        </div>
-        <div class="mb-3">
-            <label for="keterangan" class="form-label">Keterangan</label>
-            <textarea class="form-control" id="keterangan" name="keterangan" placeholder="Keterangan" rows="3"></textarea>
-        </div>
+
         <div class="d-flex justify-content-between">
             <a href="index.php?page=barang_masuk" class="btn btn-secondary">Kembali</a>
             <button type="submit" class="btn btn-primary">Simpan Barang Masuk</button>

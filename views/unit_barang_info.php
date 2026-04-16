@@ -1,4 +1,10 @@
 <?php
+    // Tombol kembali: gunakan history.back() dan fallback ke referer/dashboard.
+    $fallbackBackUrl = trim((string) ($_SERVER['HTTP_REFERER'] ?? ''));
+    if ($fallbackBackUrl === '') {
+        $fallbackBackUrl = 'index.php?page=dashboard';
+    }
+    echo '<div class="mb-3"><a href="javascript:history.back()" class="btn btn-outline-secondary btn-sm" onclick="if (window.history.length <= 1) { window.location.href=\'' . htmlspecialchars($fallbackBackUrl, ENT_QUOTES, 'UTF-8') . '\'; return false; }"><i class="bi bi-arrow-left"></i> Kembali ke Daftar Unit</a></div>';
     $canManageInventory = inventory_user_can_manage();
 function valueOrDash($value) {
     return isset($value) && trim((string) $value) !== '' ? $value : '-';
@@ -166,6 +172,17 @@ $gudangSaatIni = trim((string) ($unit['nama_gudang'] ?? ''));
 $lokasiDetail = trim((string) ($unit['nama_lokasi'] ?? ''));
 $lokasiCustom = trim((string) ($unit['lokasi_custom'] ?? ''));
 
+if (in_array($currentStatus, ['dipakai', 'dipinjam', 'digunakan'], true)) {
+    $namaUserDipakai = trim((string) ($unit['nama_user'] ?? ''));
+    $displayLokasi = $namaUserDipakai !== '' ? ('Digunakan oleh ' . $namaUserDipakai) : 'Digunakan oleh user';
+} elseif ($currentStatus === 'perbaikan') {
+    $displayLokasi = 'Dalam perbaikan';
+} else {
+    if ($gudangSaatIni !== '') {
+        $displayLokasi = $gudangSaatIni;
+    }
+}
+
 $canMove = is_asset_unit_action_allowed('move', $currentStatus);
 $canAssign = is_asset_unit_action_allowed('assign', $currentStatus);
 $canRelease = is_asset_unit_action_allowed('release', $currentStatus);
@@ -194,63 +211,69 @@ if ($canMarkRusak) {
 }
 
 $historyRows = [];
-if (schema_table_exists($koneksi, 'riwayat_unit_barang')) {
-    $historyIdCol = schema_find_existing_column($koneksi, 'riwayat_unit_barang', ['id', 'id_riwayat']);
-    $historyActivityCol = schema_find_existing_column($koneksi, 'riwayat_unit_barang', ['aktivitas', 'activity_type']);
-    $historyNoteCol = schema_find_existing_column($koneksi, 'riwayat_unit_barang', ['catatan', 'note']);
-    $historyTimeCol = schema_find_existing_column($koneksi, 'riwayat_unit_barang', ['created_at', 'changed_at']);
-    $historyActorUserCol = schema_find_existing_column($koneksi, 'riwayat_unit_barang', ['id_user_changed', 'id_user']);
-    $historyRelatedUserCol = schema_find_existing_column($koneksi, 'riwayat_unit_barang', ['id_user_terkait', 'id_user_sesudah', 'id_user']);
-    $historyActorSnapshotCol = schema_find_existing_column($koneksi, 'riwayat_unit_barang', ['actor_name_snapshot', 'user_name_snapshot']);
-
+if (schema_table_exists($koneksi, 'tracking_barang')) {
+    $historyIdCol = schema_find_existing_column($koneksi, 'tracking_barang', ['id_tracking', 'id', 'id_riwayat']);
+    $historyActivityCol = schema_find_existing_column($koneksi, 'tracking_barang', ['aktivitas', 'activity_type']);
+    $historyNoteCol = schema_find_existing_column($koneksi, 'tracking_barang', ['catatan', 'note']);
+    $historyTimeCol = schema_find_existing_column($koneksi, 'tracking_barang', ['created_at', 'changed_at']);
+    $historyActorUserCol = schema_find_existing_column($koneksi, 'tracking_barang', ['id_user_changed', 'id_user']);
+    $historyRelatedUserCol = schema_find_existing_column($koneksi, 'tracking_barang', ['id_user_terkait', 'id_user_sesudah', 'id_user']);
+    $historyActorSnapshotCol = schema_find_existing_column($koneksi, 'tracking_barang', ['actor_name_snapshot', 'user_name_snapshot']);
+    $historyUnitIdCol = schema_find_existing_column($koneksi, 'tracking_barang', ['id_unit', 'id_unit_barang']);
     $historySelect = [
         ($historyIdCol !== null ? "hr.`$historyIdCol`" : "0") . " AS history_id",
-        "hr.id_unit_barang",
-        ($historyActivityCol !== null ? "hr.`$historyActivityCol`" : "NULL") . " AS aktivitas",
+        ($historyUnitIdCol !== null ? "hr.`$historyUnitIdCol`" : "NULL") . " AS id_unit",
+        "ub.`$unitCodeColumn` AS kode_unit",
+        ($historyActivityCol !== null ? "hr.`$historyActivityCol`" : "NULL") . " AS jenis_aktivitas",
         "hr.status_sebelum",
         "hr.status_sesudah",
         "hr.kondisi_sebelum",
         "hr.kondisi_sesudah",
         "hr.lokasi_sebelum",
         "hr.lokasi_sesudah",
+        "COALESCE(hr.lokasi_sesudah, hr.lokasi_sebelum) AS lokasi",
         ($historyNoteCol !== null ? "hr.`$historyNoteCol`" : "NULL") . " AS catatan",
-        ($historyTimeCol !== null ? "hr.`$historyTimeCol`" : "NULL") . " AS history_time",
+        ($historyTimeCol !== null ? "hr.`$historyTimeCol`" : "NULL") . " AS created_at",
         ($historyActorUserCol !== null ? "hr.`$historyActorUserCol`" : "NULL") . " AS actor_user_id",
         ($historyRelatedUserCol !== null ? "hr.`$historyRelatedUserCol`" : "NULL") . " AS related_user_id",
         ($historyActorSnapshotCol !== null ? "hr.`$historyActorSnapshotCol`" : "NULL") . " AS actor_name_snapshot",
     ];
 
-    $historyQuery = "SELECT " . implode(",\n                        ", $historySelect) . ",
+    if ($historyUnitIdCol !== null) {
+        $historyQuery = "SELECT " . implode(",\n                        ", $historySelect) . ",
                             u_actor.nama AS nama_user_actor,
                             u_related.nama AS nama_user_terkait
-                     FROM riwayat_unit_barang hr";
+                     FROM tracking_barang hr";
 
-    if ($historyActorUserCol !== null) {
-        $historyQuery .= "\n                     LEFT JOIN user u_actor ON hr.`$historyActorUserCol` = u_actor.id_user";
-    } else {
-        $historyQuery .= "\n                     LEFT JOIN user u_actor ON 1 = 0";
-    }
+        $historyQuery .= "\n                     LEFT JOIN unit_barang ub ON hr.`$historyUnitIdCol` = ub.id_unit_barang";
 
-    if ($historyRelatedUserCol !== null) {
-        $historyQuery .= "\n                     LEFT JOIN user u_related ON hr.`$historyRelatedUserCol` = u_related.id_user";
-    } else {
-        $historyQuery .= "\n                     LEFT JOIN user u_related ON 1 = 0";
-    }
-
-    $historyQuery .= "\n                     WHERE hr.id_unit_barang = ?";
-    if ($historyTimeCol !== null) {
-        $historyQuery .= "\n                     ORDER BY hr.`$historyTimeCol` DESC";
-        if ($historyIdCol !== null) {
-            $historyQuery .= ", hr.`$historyIdCol` DESC";
+        if ($historyActorUserCol !== null) {
+            $historyQuery .= "\n                     LEFT JOIN user u_actor ON hr.`$historyActorUserCol` = u_actor.id_user";
+        } else {
+            $historyQuery .= "\n                     LEFT JOIN user u_actor ON 1 = 0";
         }
-    }
 
-    $historyStmt = $koneksi->prepare($historyQuery);
-    if ($historyStmt) {
-        $historyStmt->bind_param('i', $id_unit_barang);
-        $historyStmt->execute();
-        $historyResult = $historyStmt->get_result();
-        $historyRows = fetchAllRows($historyResult);
+        if ($historyRelatedUserCol !== null) {
+            $historyQuery .= "\n                     LEFT JOIN user u_related ON hr.`$historyRelatedUserCol` = u_related.id_user";
+        } else {
+            $historyQuery .= "\n                     LEFT JOIN user u_related ON 1 = 0";
+        }
+
+        $historyQuery .= "\n                     WHERE hr.`$historyUnitIdCol` = ?";
+        if ($historyTimeCol !== null) {
+            $historyQuery .= "\n                     ORDER BY hr.`$historyTimeCol` DESC";
+            if ($historyIdCol !== null) {
+                $historyQuery .= ", hr.`$historyIdCol` DESC";
+            }
+        }
+
+        $historyStmt = $koneksi->prepare($historyQuery);
+        if ($historyStmt) {
+            $historyStmt->bind_param('i', $id_unit_barang);
+            $historyStmt->execute();
+            $historyResult = $historyStmt->get_result();
+            $historyRows = fetchAllRows($historyResult);
+        }
     }
 }
 
@@ -269,15 +292,13 @@ $userRows = get_active_user_rows($koneksi);
     .status-badge-lg { font-size:0.92rem; padding:5px 14px; border-radius:999px; font-weight:700; }
     .action-card { background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:14px 16px; margin-bottom:12px; }
     .action-card h6 { font-size:0.78rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:#64748b; margin-bottom:10px; }
-    .photo-placeholder { width:100%; aspect-ratio:1; display:flex; align-items:center; justify-content:center; background:#f8fafc; border-radius:10px; color:#94a3b8; font-size:3rem; border:1px dashed #cbd5e1; }
     .qr-img-wrap { text-align:center; padding:16px; background:#f8fafc; border-radius:10px; border:1px solid #e2e8f0; display:flex; flex-direction:column; align-items:center; gap:8px; }
     .history-table-wrap { max-height:320px; overflow-y:auto; }
 </style>
 
-    <!-- ===== TOP: Info + Photo ===== -->
+    <!-- ===== TOP: Info Unit ===== -->
     <div class="row g-3 mb-3">
-        <!-- A. Info Utama (kiri) -->
-        <div class="col-lg-7">
+        <div class="col-md-12">
             <div class="unit-info-section h-100">
                 <h5><i class="bi bi-info-circle me-1"></i>Info Unit Asset</h5>
                 <div class="d-flex align-items-center gap-3 mb-3 pb-3" style="border-bottom:2px solid #f1f5f9">
@@ -297,18 +318,11 @@ $userRows = get_active_user_rows($koneksi);
                 <div class="unit-field"><span class="unit-field-label">Lokasi Custom</span><span class="unit-field-value"><?= htmlspecialchars($lokasiCustom) ?></span></div>
                 <?php endif; ?>
                 <div class="unit-field"><span class="unit-field-label">Lokasi Saat Ini</span><span class="unit-field-value fw-bold"><?= htmlspecialchars($displayLokasi ?: '-') ?></span></div>
-                <div class="unit-field"><span class="unit-field-label">Pengguna</span><span class="unit-field-value"><?= htmlspecialchars($unit['nama_user'] ?? '-') ?></span></div>
+                <div class="unit-field"><span class="unit-field-label">Pengguna</span><span class="unit-field-value"><?= htmlspecialchars(!empty($unit['nama_user']) ? $unit['nama_user'] : 'Tidak digunakan') ?></span></div>
                 <div class="unit-field"><span class="unit-field-label">Ditambahkan</span><span class="unit-field-value" style="color:#64748b"><?= htmlspecialchars($unit['created_at'] ?? '-') ?></span></div>
                 <div class="unit-field"><span class="unit-field-label">Diperbarui</span><span class="unit-field-value" style="color:#64748b"><?= htmlspecialchars($unit['updated_at'] ?? '-') ?></span></div>
-            </div>
-        </div>
-
-        <!-- B. Foto & QR (kanan) -->
-        <div class="col-lg-5">
-            <div class="unit-info-section h-100">
-                <h5><i class="bi bi-qr-code me-1"></i>QR Code & Foto</h5>
                 <?php if (!empty($unit['qr_value'])): ?>
-                <div class="qr-img-wrap mb-3">
+                <div class="qr-img-wrap mt-3">
                     <img src="<?= htmlspecialchars($qrImagePath) ?>"
                          alt="QR Code Unit"
                          onerror="this.onerror=null;this.src='<?= htmlspecialchars($qrFallbackPath) ?>';"
@@ -320,24 +334,7 @@ $userRows = get_active_user_rows($koneksi);
                     </div>
                 </div>
                 <?php else: ?>
-                <div class="photo-placeholder mb-3"><i class="bi bi-qr-code-scan"></i></div>
-                <p class="text-muted text-center small">QR belum tersedia</p>
-                <?php endif; ?>
-
-                <?php
-                $latestPhoto = get_latest_product_photo($koneksi, $unit['id_produk'] ?? 0);
-                 $photoPath = $latestPhoto['photo_path'] ?? null;
-                ?>
-                <?php if ($photoPath && file_exists(__DIR__ . '/../' . $photoPath)): ?>
-                <h5 class="mt-3"><i class="bi bi-image me-1"></i>Foto Terkini</h5>
-                 <img src="<?= htmlspecialchars($photoPath) ?>" alt="Foto Produk"
-                     style="width:100%;border-radius:10px;border:1px solid #e2e8f0;object-fit:cover;max-height:200px">
-                <div style="font-size:0.75rem;color:#6b7280;margin-top:4px">
-                    <?= htmlspecialchars($latestPhoto['created_at'] ?? '') ?> &mdash; <?= htmlspecialchars($latestPhoto['event_type'] ?? '') ?>
-                </div>
-                <?php else: ?>
-                <div class="photo-placeholder" style="aspect-ratio:16/9"><i class="bi bi-image" style="font-size:2rem"></i></div>
-                <p class="text-muted text-center small mt-1">Belum ada foto dokumentasi</p>
+                <div class="text-muted small mt-3">QR belum tersedia.</div>
                 <?php endif; ?>
             </div>
         </div>
@@ -357,9 +354,10 @@ $userRows = get_active_user_rows($koneksi);
         </div>
 
         <div class="row g-3">
+            <!-- Setiap aksi card akan col-12 di mobile, col-6 di desktop, dan card sama tinggi -->
             <?php if ($canMove): ?>
-            <div class="col-md-6">
-                <div class="action-card">
+            <div class="col-12 col-md-6 d-flex align-items-stretch">
+                <div class="action-card mb-2 w-100 h-100">
                     <h6><i class="bi bi-geo-alt me-1"></i>Pindah Lokasi</h6>
                     <form class="unit-action-form" data-url="action/update_unit_location.php" data-confirm="Pindahkan unit ini ke lokasi baru?">
                         <input type="hidden" name="id_unit_barang" value="<?= $unit['id_unit_barang'] ?>">
@@ -377,8 +375,8 @@ $userRows = get_active_user_rows($koneksi);
             <?php endif; ?>
 
             <?php if ($canAssign): ?>
-            <div class="col-md-6">
-                <div class="action-card">
+            <div class="col-12 col-md-6 d-flex align-items-stretch">
+                <div class="action-card mb-2 w-100 h-100">
                     <h6><i class="bi bi-person-check me-1"></i>Assign / Pinjam ke User</h6>
                     <form class="unit-action-form" data-url="action/assign_unit_barang.php" data-confirm="Assign / pinjam unit ini ke user terpilih?">
                         <input type="hidden" name="id_unit_barang" value="<?= $unit['id_unit_barang'] ?>">
@@ -395,8 +393,8 @@ $userRows = get_active_user_rows($koneksi);
             <?php endif; ?>
 
             <?php if ($canMarkPerbaikan): ?>
-            <div class="col-md-6">
-                <div class="action-card" style="border-color:#fbbf24">
+            <div class="col-12 col-md-6 d-flex align-items-stretch">
+                <div class="action-card mb-2 w-100 h-100" style="border-color:#fbbf24">
                     <h6 style="color:#b45309"><i class="bi bi-tools me-1"></i>Kirim Perbaikan</h6>
                     <form class="unit-action-form" data-url="action/update_unit_status.php" data-confirm="Kirim unit ini ke perbaikan?">
                         <input type="hidden" name="id_unit_barang" value="<?= $unit['id_unit_barang'] ?>">
@@ -411,8 +409,8 @@ $userRows = get_active_user_rows($koneksi);
             <?php endif; ?>
 
             <?php if ($canSetTersedia): ?>
-            <div class="col-md-6">
-                <div class="action-card" style="border-color:#22c55e">
+            <div class="col-12 col-md-6 d-flex align-items-stretch">
+                <div class="action-card mb-2 w-100 h-100" style="border-color:#22c55e">
                     <h6 style="color:#15803d"><i class="bi bi-check-circle me-1"></i>Selesai Perbaikan / Set Tersedia</h6>
                     <form class="unit-action-form" data-url="action/update_unit_status.php" data-confirm="Set unit ini kembali menjadi tersedia?">
                         <input type="hidden" name="id_unit_barang" value="<?= $unit['id_unit_barang'] ?>">
@@ -425,8 +423,8 @@ $userRows = get_active_user_rows($koneksi);
             <?php endif; ?>
 
             <?php if ($canRelease): ?>
-            <div class="col-md-4">
-                <div class="action-card">
+            <div class="col-12 col-md-6 d-flex align-items-stretch">
+                <div class="action-card mb-2 w-100 h-100">
                     <h6><i class="bi bi-box-arrow-in-left me-1"></i>Release / Kembali</h6>
                     <p class="text-muted small mb-2">Kembalikan unit dari user, status menjadi tersedia.</p>
                     <form class="unit-action-form" data-url="action/release_unit_barang.php" data-confirm="Release / kembalikan unit ini menjadi tersedia?">
@@ -438,8 +436,8 @@ $userRows = get_active_user_rows($koneksi);
             <?php endif; ?>
 
             <?php if ($canMarkRusak): ?>
-            <div class="col-md-4">
-                <div class="action-card" style="border-color:#ef4444">
+            <div class="col-12 col-md-6 d-flex align-items-stretch">
+                <div class="action-card mb-2 w-100 h-100" style="border-color:#ef4444">
                     <h6 style="color:#b91c1c"><i class="bi bi-exclamation-triangle me-1"></i>Tandai Rusak</h6>
                     <p class="text-muted small mb-2">Tandai unit sebagai rusak permanen.</p>
                     <form class="unit-action-form" data-url="action/update_unit_status.php" data-confirm="Tandai unit ini sebagai rusak?">
@@ -450,7 +448,90 @@ $userRows = get_active_user_rows($koneksi);
                     </form>
                 </div>
             </div>
-            <?php endif; ?>
+            <!-- <?php endif; ?>
+                <?php if ($canMove): ?>
+                <div class="action-card mb-2">
+                    <h6><i class="bi bi-geo-alt me-1"></i>Pindah Lokasi</h6>
+                    <form class="unit-action-form" data-url="action/update_unit_location.php" data-confirm="Pindahkan unit ini ke lokasi baru?">
+                        <input type="hidden" name="id_unit_barang" value="<?= $unit['id_unit_barang'] ?>">
+                        <select name="id_gudang" class="form-select form-select-sm mb-2">
+                            <option value="">-- Pilih Gudang --</option>
+                            <?php foreach ($gudangRows as $g): ?>
+                            <option value="<?= $g['id_gudang'] ?>" <?= ((string)$g['id_gudang'] === (string)($unit['id_gudang'] ?? '')) ? 'selected' : '' ?>><?= htmlspecialchars($g['nama_gudang']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <input type="text" name="lokasi_custom" class="form-control form-control-sm mb-2" placeholder="Lokasi custom (misal: Ruang IT)">
+                        <button type="submit" class="btn btn-sm btn-primary w-100"><i class="bi bi-send me-1"></i>Pindahkan</button>
+                    </form>
+                </div>
+                <?php endif; ?>
+
+                <?php if ($canAssign): ?>
+                <div class="action-card mb-2">
+                    <h6><i class="bi bi-person-check me-1"></i>Assign / Pinjam ke User</h6>
+                    <form class="unit-action-form" data-url="action/assign_unit_barang.php" data-confirm="Assign / pinjam unit ini ke user terpilih?">
+                        <input type="hidden" name="id_unit_barang" value="<?= $unit['id_unit_barang'] ?>">
+                        <select name="id_user" class="form-select form-select-sm mb-2">
+                            <option value="">-- Pilih User --</option>
+                            <?php foreach ($userRows as $u): ?>
+                            <option value="<?= $u['id_user'] ?>"><?= htmlspecialchars($u['nama']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <button type="submit" class="btn btn-sm btn-success w-100"><i class="bi bi-person-plus me-1"></i>Assign / Pinjam</button>
+                    </form>
+                </div>
+                <?php endif; ?>
+
+                <?php if ($canMarkPerbaikan): ?>
+                <div class="action-card mb-2" style="border-color:#fbbf24">
+                    <h6 style="color:#b45309"><i class="bi bi-tools me-1"></i>Kirim Perbaikan</h6>
+                    <form class="unit-action-form" data-url="action/update_unit_status.php" data-confirm="Kirim unit ini ke perbaikan?">
+                        <input type="hidden" name="id_unit_barang" value="<?= $unit['id_unit_barang'] ?>">
+                        <input type="hidden" name="status" value="perbaikan">
+                        <input type="text" name="vendor" class="form-control form-control-sm mb-2" placeholder="Nama vendor / teknisi (opsional)">
+                        <input type="date" name="estimasi_selesai" class="form-control form-control-sm mb-2" title="Estimasi selesai perbaikan">
+                        <input type="text" name="note" class="form-control form-control-sm mb-2" placeholder="Catatan tambahan">
+                        <button type="submit" class="btn btn-sm btn-warning w-100"><i class="bi bi-tools me-1"></i>Kirim ke Perbaikan</button>
+                    </form>
+                </div>
+                <?php endif; ?>
+
+                <?php if ($canSetTersedia): ?>
+                <div class="action-card mb-2" style="border-color:#22c55e">
+                    <h6 style="color:#15803d"><i class="bi bi-check-circle me-1"></i>Selesai Perbaikan / Set Tersedia</h6>
+                    <form class="unit-action-form" data-url="action/update_unit_status.php" data-confirm="Set unit ini kembali menjadi tersedia?">
+                        <input type="hidden" name="id_unit_barang" value="<?= $unit['id_unit_barang'] ?>">
+                        <input type="hidden" name="status" value="tersedia">
+                        <input type="text" name="note" class="form-control form-control-sm mb-2" placeholder="Catatan (misal: Perbaikan selesai)">
+                        <button type="submit" class="btn btn-sm btn-success w-100"><i class="bi bi-check-circle me-1"></i>Selesai / Set Tersedia</button>
+                    </form>
+                </div>
+                <?php endif; ?>
+
+                <?php if ($canRelease): ?>
+                <div class="action-card mb-2">
+                    <h6><i class="bi bi-box-arrow-in-left me-1"></i>Release / Kembali</h6>
+                    <p class="text-muted small mb-2">Kembalikan unit dari user, status menjadi tersedia.</p>
+                    <form class="unit-action-form" data-url="action/release_unit_barang.php" data-confirm="Release / kembalikan unit ini menjadi tersedia?">
+                        <input type="hidden" name="id_unit_barang" value="<?= $unit['id_unit_barang'] ?>">
+                        <button type="submit" class="btn btn-sm btn-outline-warning w-100"><i class="bi bi-arrow-return-left me-1"></i>Release / Kembali</button>
+                    </form>
+                </div>
+                <?php endif; ?>
+
+                <?php if ($canMarkRusak): ?>
+                <div class="action-card mb-2" style="border-color:#ef4444">
+                    <h6 style="color:#b91c1c"><i class="bi bi-exclamation-triangle me-1"></i>Tandai Rusak</h6>
+                    <p class="text-muted small mb-2">Tandai unit sebagai rusak permanen.</p>
+                    <form class="unit-action-form" data-url="action/update_unit_status.php" data-confirm="Tandai unit ini sebagai rusak?">
+                        <input type="hidden" name="id_unit_barang" value="<?= $unit['id_unit_barang'] ?>">
+                        <input type="hidden" name="status" value="rusak">
+                        <input type="text" name="note" class="form-control form-control-sm mb-2" placeholder="Keterangan kerusakan">
+                        <button type="submit" class="btn btn-sm btn-danger w-100"><i class="bi bi-x-circle me-1"></i>Tandai Rusak</button>
+                    </form>
+                </div>
+                <?php endif; ?>
+            </div> -->
         </div>
         <?php if (!$canMove && !$canAssign && !$canRelease && !$canSetTersedia && !$canMarkPerbaikan && !$canMarkRusak): ?>
         <div class="alert alert-secondary py-2 mb-0">Tidak ada aksi cepat yang tersedia untuk status <strong><?= htmlspecialchars($currentStatusLabel) ?></strong>.</div>
@@ -469,37 +550,44 @@ $userRows = get_active_user_rows($koneksi);
             <table class="table table-sm table-bordered mb-0" style="font-size:0.82rem">
                 <thead style="background:#f1f5f9;position:sticky;top:0">
                     <tr>
-                        <th>No</th><th>Waktu</th><th>Tipe Aksi</th><th>Aktivitas</th>
+                        <th>No</th><th>Waktu</th><th>Unit</th><th>Tipe Aksi</th><th>Aktivitas</th>
                         <th>Status</th><th>Kondisi</th><th>Lokasi</th>
                         <th>User Terkait</th><th>Oleh</th><th>Catatan</th>
                     </tr>
                 </thead>
                 <tbody>
                 <?php $i = 1; foreach ($historyRows as $row):
-                    $activityValue = infer_tracking_activity_type($row, 'update');
+                    $activityValue = trim((string) ($row['jenis_aktivitas'] ?? ''));
+                    if ($activityValue === '') {
+                        $activityValue = infer_tracking_activity_type($row, 'update');
+                    }
                     $activityGroup = get_asset_unit_activity_group($activityValue);
                     $activityLabel = formatHistoryActivityDetail($activityValue);
                     $relatedUser = $row['nama_user_terkait'] ?? null;
                     $actorSnapshot = trim((string) ($row['actor_name_snapshot'] ?? ''));
                     $actorUser = $actorSnapshot !== '' ? $actorSnapshot : ($row['nama_user_actor'] ?? null);
-                    $catatan = formatHistoryNoteDetail($row);
+                    $catatan = trim((string) ($row['catatan'] ?? ''));
+                    if ($catatan === '') {
+                        $catatan = formatHistoryNoteDetail($row);
+                    }
                     $isRepair = in_array(strtolower($activityValue ?? ''), ['perbaikan','mark_perbaikan','kirim_perbaikan','selesai_perbaikan']);
                 ?>
                     <tr <?= $isRepair ? 'style="background:#fffbeb"' : '' ?>>
                         <td><?= $i++ ?></td>
-                        <td style="white-space:nowrap"><?= htmlspecialchars($row['history_time'] ?? '-') ?></td>
+                        <td style="white-space:nowrap"><?= htmlspecialchars($row['created_at'] ?? '-') ?></td>
+                        <td><?= htmlspecialchars($row['kode_unit'] ?? ($unit['kode_unit'] ?? $unit['serial_number'] ?? '-')) ?></td>
                         <td><span class="badge bg-dark" style="font-size:0.68rem"><?= htmlspecialchars($activityGroup) ?></span></td>
                         <td><?= htmlspecialchars($activityLabel ?: '-') ?></td>
                         <td style="font-size:0.78rem"><?= htmlspecialchars(formatHistoryChange($row['status_sebelum'] ?? null, $row['status_sesudah'] ?? null, 'formatUnitStatusValue')) ?></td>
                         <td style="font-size:0.78rem"><?= htmlspecialchars(formatHistoryChange($row['kondisi_sebelum'] ?? null, $row['kondisi_sesudah'] ?? null)) ?></td>
-                        <td style="font-size:0.78rem"><?= htmlspecialchars(formatHistoryChange($row['lokasi_sebelum'] ?? null, $row['lokasi_sesudah'] ?? null)) ?></td>
+                        <td style="font-size:0.78rem"><?= htmlspecialchars(valueOrDash($row['lokasi'] ?? null)) ?></td>
                         <td><?= htmlspecialchars($relatedUser ?: '-') ?></td>
                         <td><?= htmlspecialchars($actorUser ?: '-') ?></td>
                         <td style="max-width:200px;white-space:normal"><?= htmlspecialchars($catatan ?: '-') ?></td>
                     </tr>
                 <?php endforeach; ?>
                 <?php if (empty($historyRows)): ?>
-                    <tr><td colspan="10" class="text-center py-3 text-muted">Belum ada riwayat unit.</td></tr>
+                    <tr><td colspan="11" class="text-center py-3 text-muted">Belum ada riwayat unit.</td></tr>
                 <?php endif; ?>
                 </tbody>
             </table>

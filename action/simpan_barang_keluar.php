@@ -105,14 +105,8 @@ try {
         throw new \RuntimeException('Stok tidak mencukupi atau sudah berubah oleh transaksi lain.');
     }
 
-    // Kurangi stokgudang
-    if (!empty($produk['id_gudang'])) {
-        $stokGudangUpdate = $koneksi->prepare("UPDATE stokgudang SET jumlah_stok = GREATEST(jumlah_stok - ?, 0) WHERE id_produk = ? AND id_gudang = ?");
-        if ($stokGudangUpdate) {
-            $stokGudangUpdate->bind_param('iii', $jumlah, $id_produk, $produk['id_gudang']);
-            $stokGudangUpdate->execute();
-        }
-    }
+    // Sync stokgudang dari data aktual
+    sync_stok_gudang($koneksi, $id_produk);
 
     // Insert transaksi
     if (!$insertTransaksiStmt->execute()) {

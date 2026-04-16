@@ -91,7 +91,8 @@ try {
                     throw new Exception('Unit asset gagal dikembalikan ke gudang.');
                 }
 
-                log_riwayat_unit_barang($koneksi, [
+                log_tracking_unit_barang($koneksi, [
+                    'id_unit' => $unitBarangId,
                     'id_unit_barang' => $unitBarangId,
                     'id_produk' => $produkId,
                     'activity_type' => 'kembali',

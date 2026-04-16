@@ -106,7 +106,20 @@ $query = "SELECT produk.id_produk, produk.kode_produk, produk.nama_produk, kateg
     $unitHistory = [];
 
     if ($isAsset) {
-        $unitResult = $koneksi->query("SELECT ub.id_unit_barang, ub.kode_unit, ub.status, ub.kondisi, ub.id_user, ub.lokasi_custom, ub.id_gudang, u.nama AS nama_user, g.nama_gudang
+        $unitCodeExpr = "CONCAT('ID-', ub.id_unit_barang)";
+        if (schema_has_column_now($koneksi, 'unit_barang', 'kode_unit')) {
+            $unitCodeExpr = "COALESCE(NULLIF(TRIM(ub.kode_unit), ''), " . $unitCodeExpr . ")";
+        }
+        if (schema_has_column_now($koneksi, 'unit_barang', 'serial_number')) {
+            $unitCodeExpr = "COALESCE(NULLIF(TRIM(ub.serial_number), ''), " . $unitCodeExpr . ")";
+        }
+        if (schema_has_column_now($koneksi, 'unit_barang', 'kode_qrcode')) {
+            $unitCodeExpr = "COALESCE(NULLIF(TRIM(ub.kode_qrcode), ''), " . $unitCodeExpr . ")";
+        }
+
+        $unitResult = $koneksi->query("SELECT ub.id_unit_barang,
+                             COALESCE(NULLIF(TRIM(ub.serial_number), ''), NULLIF(TRIM(ub.kode_qrcode), ''), CONCAT('ID-', ub.id_unit_barang)) AS kode_unit_tampil,
+                             ub.status, ub.kondisi, ub.id_user, ub.lokasi_custom, ub.id_gudang, u.nama AS nama_user, g.nama_gudang
                                       FROM unit_barang ub
                                       LEFT JOIN user u ON ub.id_user = u.id_user
                                       LEFT JOIN gudang g ON ub.id_gudang = g.id_gudang
@@ -115,12 +128,14 @@ $query = "SELECT produk.id_produk, produk.kode_produk, produk.nama_produk, kateg
             $unitList[] = $u;
         }
 
-        $historyActivityCol = schema_find_existing_column($koneksi, 'riwayat_unit_barang', ['aktivitas', 'activity_type']);
-        $historyNoteCol = schema_find_existing_column($koneksi, 'riwayat_unit_barang', ['catatan', 'note']);
-        $historyTimeCol = schema_find_existing_column($koneksi, 'riwayat_unit_barang', ['created_at', 'changed_at']);
-        $historyActorUserCol = schema_find_existing_column($koneksi, 'riwayat_unit_barang', ['id_user_changed']);
-        $historyRelatedUserCol = schema_find_existing_column($koneksi, 'riwayat_unit_barang', ['id_user_terkait', 'id_user_sesudah', 'id_user']);
-        $historyActorSnapshotCol = schema_find_existing_column($koneksi, 'riwayat_unit_barang', ['actor_name_snapshot', 'user_name_snapshot']);
+        $historyActivityCol = schema_find_existing_column($koneksi, 'tracking_barang', ['aktivitas', 'activity_type']);
+        $historyNoteCol = schema_find_existing_column($koneksi, 'tracking_barang', ['catatan', 'note']);
+        $historyTimeCol = schema_find_existing_column($koneksi, 'tracking_barang', ['created_at', 'changed_at']);
+        $historyActorUserCol = schema_find_existing_column($koneksi, 'tracking_barang', ['id_user_changed']);
+        $historyRelatedUserCol = schema_find_existing_column($koneksi, 'tracking_barang', ['id_user_terkait', 'id_user_sesudah', 'id_user']);
+        $historyActorSnapshotCol = schema_find_existing_column($koneksi, 'tracking_barang', ['actor_name_snapshot', 'user_name_snapshot']);
+        $historyUnitIdCol = schema_find_existing_column($koneksi, 'tracking_barang', ['id_unit']);
+        $historyFallbackUnitIdCol = schema_find_existing_column($koneksi, 'tracking_barang', ['id_unit_barang']);
 
         $historyQuery = "SELECT hr.*,
                                 u_related.nama AS user_name,
@@ -130,9 +145,10 @@ $query = "SELECT produk.id_produk, produk.kode_produk, produk.nama_produk, kateg
                                 " . ($historyTimeCol !== null ? "hr.`$historyTimeCol`" : "NULL") . " AS history_time,
                                 " . ($historyActorSnapshotCol !== null ? "hr.`$historyActorSnapshotCol`" : "NULL") . " AS actor_name_snapshot,
                                 " . ($historyRelatedUserCol !== null ? "hr.`$historyRelatedUserCol`" : "NULL") . " AS related_user_id,
-                                hr.id_unit_barang,
-                                ub.kode_unit AS unit_serial
-                         FROM riwayat_unit_barang hr";
+                                " . ($historyUnitIdCol !== null ? "hr.`$historyUnitIdCol`" : "NULL") . " AS id_unit,
+                                " . ($historyFallbackUnitIdCol !== null ? "hr.`$historyFallbackUnitIdCol`" : "NULL") . " AS id_unit_barang,
+                                    $unitCodeExpr AS unit_serial
+                         FROM tracking_barang hr";
         if ($historyRelatedUserCol !== null) {
             $historyQuery .= "\n                         LEFT JOIN user u_related ON hr.`$historyRelatedUserCol` = u_related.id_user";
         } else {
@@ -143,8 +159,16 @@ $query = "SELECT produk.id_produk, produk.kode_produk, produk.nama_produk, kateg
         } else {
             $historyQuery .= "\n                         LEFT JOIN user u_actor ON 1 = 0";
         }
-        $historyQuery .= "\n                         LEFT JOIN unit_barang ub ON hr.id_unit_barang = ub.id_unit_barang
+        if ($historyUnitIdCol !== null) {
+            $historyQuery .= "\n                         LEFT JOIN unit_barang ub ON hr.`$historyUnitIdCol` = ub.id_unit_barang
+                         WHERE hr.`$historyUnitIdCol` IS NOT NULL AND ub.id_produk = ?";
+        } elseif ($historyFallbackUnitIdCol !== null) {
+            $historyQuery .= "\n                         LEFT JOIN unit_barang ub ON hr.`$historyFallbackUnitIdCol` = ub.id_unit_barang
                          WHERE ub.id_produk = ?";
+        } else {
+            $historyQuery .= "\n                         LEFT JOIN unit_barang ub ON 1 = 0
+                         WHERE hr.id_produk = ?";
+        }
         if ($historyTimeCol !== null) {
             $historyQuery .= " ORDER BY hr.`$historyTimeCol` DESC";
         } else {
@@ -251,47 +275,7 @@ $query = "SELECT produk.id_produk, produk.kode_produk, produk.nama_produk, kateg
         </div>
 
         <div class="row mb-4">
-            <div class="col-lg-4">
-                <div class="card">
-                    <div class="card-header bg-primary text-white">
-                        <h5 class="mb-0">Foto Terbaru</h5>
-                    </div>
-                    <div class="card-body d-flex flex-column">
-                        <?php 
-                        $latestPhoto = get_latest_product_photo($koneksi, $data['id_produk']);
-                        if ($latestPhoto && !empty($latestPhoto['photo_path'])): 
-                        ?>
-                            <div class="mb-3">
-                                <img src="<?= htmlspecialchars($latestPhoto['photo_path']) ?>" alt="Foto terbaru" class="img-fluid rounded" style="max-width: 100%; max-height: 300px; object-fit: contain;">
-                            </div>
-                            <div class="small text-muted">
-                                <div class="mb-2">
-                                    <strong>Diambil:</strong><br>
-                                    <?= htmlspecialchars($latestPhoto['created_at']) ?>
-                                </div>
-                                <div class="mb-2">
-                                    <strong>Tipe Transaksi:</strong><br>
-                                    <span class="badge bg-info"><?= ucfirst(htmlspecialchars($latestPhoto['ref_type'])) ?></span>
-                                </div>
-                                <div>
-                                    <strong>Oleh:</strong><br>
-                                    <?= htmlspecialchars($latestPhoto['actor_name'] ?? 'System') ?>
-                                </div>
-                            </div>
-                        <?php else: ?>
-                            <div class="text-center py-5">
-                                <svg class="mb-3" style="width: 64px; height: 64px; color: #dee2e6;" fill="currentColor" viewBox="0 0 16 16">
-                                    <path d="M14.5 1h-13C.67 1 0 1.67 0 2.5v11C0 14.33.67 15 1.5 15h13c.83 0 1.5-.67 1.5-1.5v-11C16 1.67 15.33 1 14.5 1zm0 12h-13v-11h13v11zM11 6a2 2 0 10-4 0 2 2 0 004 0zM2 11.5h12V13H2z"/>
-                                </svg>
-                                <p class="text-muted mb-0">Belum ada foto</p>
-                                <small class="text-muted">Foto akan muncul setelah transaksi mutasi atau serah terima dengan dokumentasi foto</small>
-                            </div>
-                        <?php endif; ?>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-lg-8">
+            <div class="col-md-12">
                 <h4>Aksi Tracking</h4>
                 <?php if (!empty($_GET['error'])): ?>
                 <div class="alert alert-danger"><?= htmlspecialchars((string) $_GET['error']) ?></div>
@@ -299,10 +283,14 @@ $query = "SELECT produk.id_produk, produk.kode_produk, produk.nama_produk, kateg
                 <?php if (!empty($_GET['success'])): ?>
                 <div class="alert alert-success"><?= htmlspecialchars((string) $_GET['success']) ?></div>
                 <?php endif; ?>
+                <?php if (!empty($_SESSION['tracking_debug_insert'])): ?>
+                <div class="alert alert-warning"><?= htmlspecialchars((string) $_SESSION['tracking_debug_insert']) ?></div>
+                <?php unset($_SESSION['tracking_debug_insert']); ?>
+                <?php endif; ?>
                 <?php if (!$canManageInventory): ?>
                 <div class="alert alert-secondary">Role `user` hanya dapat melihat detail dan riwayat tracking.</div>
                 <?php else: ?>
-                <form action="action/update_tracking.php" method="post">
+                <form action="action/update_tracking.php" method="post" id="form-tracking-produk">
                     <input type="hidden" name="id_produk" value="<?= $data['id_produk'] ?>">
 
                     <?php if ($isAsset): ?>
@@ -319,8 +307,8 @@ $query = "SELECT produk.id_produk, produk.kode_produk, produk.nama_produk, kateg
                         <div class="unit-checkbox-scroll">
                             <?php foreach ($unitList as $unit): ?>
                                 <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="id_unit_barang[]" value="<?= $unit['id_unit_barang'] ?>" id="unit_<?= $unit['id_unit_barang'] ?>">
-                                    <label class="form-check-label" for="unit_<?= $unit['id_unit_barang'] ?>"><?= htmlspecialchars($unit['kode_unit']) ?> (<?= htmlspecialchars($unit['status']) ?>)</label>
+                                    <input class="form-check-input" type="checkbox" name="id_unit[]" value="<?= $unit['id_unit_barang'] ?>" id="unit_<?= $unit['id_unit_barang'] ?>">
+                                    <label class="form-check-label" for="unit_<?= $unit['id_unit_barang'] ?>"><?= htmlspecialchars($unit['kode_unit_tampil']) ?> (<?= htmlspecialchars($unit['status']) ?>)</label>
                                 </div>
                             <?php endforeach; ?>
                         </div>
@@ -332,14 +320,12 @@ $query = "SELECT produk.id_produk, produk.kode_produk, produk.nama_produk, kateg
                     <div class="row g-3">
                         <div class="col-md-3">
                             <label class="form-label">Jenis Aktivitas</label>
-                            <select name="activity_type" class="form-select" required>
+                            <select name="jenis_aktivitas" id="activity_type" class="form-select" required>
                                 <option value="">--Pilih--</option>
-                                <option value="pinjam">Pinjam</option>
-                                <option value="kembali">Kembali</option>
-                                <option value="pindah">Pindah Lokasi</option>
-                                <option value="perbaikan">Masuk Perbaikan</option>
+                                <option value="dipinjam">Dipinjam</option>
+                                <option value="dikembalikan">Dikembalikan</option>
+                                <option value="perbaikan">Perbaikan</option>
                                 <option value="rusak">Rusak</option>
-                                <option value="update">Update Status Umum</option>
                             </select>
                         </div>
                         <div class="col-md-3">
@@ -358,8 +344,8 @@ $query = "SELECT produk.id_produk, produk.kode_produk, produk.nama_produk, kateg
                                 <?php endforeach; ?>
                             </select>
                         </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Gudang Tujuan</label>
+                        <div class="col-md-3" id="field-tujuan-wrap">
+                            <label class="form-label" id="label-tujuan">Tujuan / Penerima</label>
                             <select name="id_gudang" class="form-select">
                                 <option value="">--Tidak Diubah--</option>
                                 <?php while ($g = $gudangs->fetch_assoc()): ?>
@@ -367,22 +353,22 @@ $query = "SELECT produk.id_produk, produk.kode_produk, produk.nama_produk, kateg
                                 <?php endwhile; ?>
                             </select>
                         </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Lokasi Kustom</label>
-                            <input type="text" name="lokasi_custom" value="<?= htmlspecialchars($data['lokasi_custom'] ?? '') ?>" class="form-control" placeholder="Contoh: Ruang IT" />
+                        <div class="col-md-4" id="field-lokasi-vendor-wrap">
+                            <label class="form-label" id="label-lokasi-vendor">Vendor / Lokasi</label>
+                            <input type="text" name="lokasi" value="<?= htmlspecialchars($data['lokasi_custom'] ?? '') ?>" class="form-control" placeholder="Contoh: Vendor PT Maju atau Ruang IT" />
                         </div>
-                        <div class="col-md-4">
-                            <label class="form-label">User Terkait</label>
-                            <select name="id_user" class="form-select">
+                        <div class="col-md-4" id="field-user-wrap">
+                            <label class="form-label" id="label-user">User Terkait</label>
+                            <select name="user_terkait" class="form-select">
                                 <option value="">--Pilih User--</option>
                                 <?php while ($u = $users->fetch_assoc()): ?>
                                 <option value="<?= $u['id_user'] ?>" <?= $data['id_user'] == $u['id_user'] ? 'selected' : '' ?>><?= htmlspecialchars($u['nama']) ?></option>
                                 <?php endwhile; ?>
                             </select>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-4" id="field-catatan-wrap">
                             <label class="form-label">Catatan</label>
-                            <input type="text" name="note" class="form-control" placeholder="Catatan aktivitas" />
+                            <input type="text" name="catatan" class="form-control" placeholder="Catatan aktivitas" />
                         </div>
                     </div>
                     <div class="mt-3">
@@ -415,7 +401,7 @@ $query = "SELECT produk.id_produk, produk.kode_produk, produk.nama_produk, kateg
                     <?php foreach ($unitList as $index => $unitRow): ?>
                         <tr>
                             <td><?= $index + 1 ?></td>
-                            <td><?= htmlspecialchars($unitRow['kode_unit']) ?></td>
+                            <td><?= htmlspecialchars($unitRow['kode_unit_tampil']) ?></td>
                             <td><?= htmlspecialchars($unitRow['status']) ?></td>
                             <td><?= htmlspecialchars($unitRow['kondisi']) ?></td>
                             <td><?= htmlspecialchars(trim($unitRow['lokasi_custom'] ?? '') !== '' ? $unitRow['lokasi_custom'] : (trim($unitRow['nama_gudang'] ?? '') !== '' ? $unitRow['nama_gudang'] : '-')) ?></td>
@@ -562,6 +548,105 @@ $query = "SELECT produk.id_produk, produk.kode_produk, produk.nama_produk, kateg
             </div>
         </div>
     </div>
+
+    <script>
+    (function () {
+        const activityEl = document.getElementById('activity_type');
+        const tujuanWrapEl = document.getElementById('field-tujuan-wrap');
+        const tujuanLabelEl = document.getElementById('label-tujuan');
+        const gudangSelectEl = tujuanWrapEl ? tujuanWrapEl.querySelector('select[name="id_gudang"]') : null;
+        const userWrapEl = document.getElementById('field-user-wrap');
+        const userLabelEl = document.getElementById('label-user');
+        const userSelectEl = userWrapEl ? userWrapEl.querySelector('select[name="user_terkait"]') : null;
+        const lokasiVendorWrapEl = document.getElementById('field-lokasi-vendor-wrap');
+        const lokasiVendorLabelEl = document.getElementById('label-lokasi-vendor');
+        const lokasiVendorInputEl = lokasiVendorWrapEl ? lokasiVendorWrapEl.querySelector('input[name="lokasi"]') : null;
+        const catatanWrapEl = document.getElementById('field-catatan-wrap');
+        const catatanInputEl = catatanWrapEl ? catatanWrapEl.querySelector('input[name="catatan"]') : null;
+
+        if (!activityEl || !tujuanWrapEl || !tujuanLabelEl || !gudangSelectEl || !userWrapEl || !userLabelEl || !userSelectEl || !lokasiVendorWrapEl || !lokasiVendorLabelEl || !lokasiVendorInputEl || !catatanWrapEl || !catatanInputEl) {
+            return;
+        }
+
+        function showEl(el) {
+            el.style.display = '';
+        }
+
+        function hideEl(el) {
+            el.style.display = 'none';
+        }
+
+        function resetField(field) {
+            if (field.tagName === 'SELECT') {
+                field.value = '';
+            } else {
+                field.value = '';
+            }
+            field.required = false;
+            field.disabled = true;
+        }
+
+        function enableField(field, required) {
+            field.disabled = false;
+            field.required = !!required;
+        }
+
+        function updateTujuanVisibility() {
+            const value = String(activityEl.value || '').trim().toLowerCase();
+
+            showEl(tujuanWrapEl);
+            showEl(userWrapEl);
+            showEl(lokasiVendorWrapEl);
+            showEl(catatanWrapEl);
+
+            resetField(gudangSelectEl);
+            resetField(userSelectEl);
+            resetField(lokasiVendorInputEl);
+            resetField(catatanInputEl);
+
+            tujuanLabelEl.textContent = 'Tujuan / Penerima';
+            userLabelEl.textContent = 'User Terkait';
+            lokasiVendorLabelEl.textContent = 'Vendor / Lokasi';
+
+            if (value === 'dipinjam') {
+                enableField(userSelectEl, true);
+                hideEl(tujuanWrapEl);
+                hideEl(lokasiVendorWrapEl);
+                enableField(catatanInputEl, false);
+                userLabelEl.textContent = 'User Terkait (Peminjam)';
+                return;
+            }
+
+            if (value === 'perbaikan') {
+                enableField(lokasiVendorInputEl, true);
+                hideEl(tujuanWrapEl);
+                hideEl(userWrapEl);
+                enableField(catatanInputEl, false);
+                lokasiVendorLabelEl.textContent = 'Vendor atau Lokasi Perbaikan';
+                return;
+            }
+
+            if (value === 'rusak') {
+                enableField(catatanInputEl, true);
+                hideEl(tujuanWrapEl);
+                hideEl(userWrapEl);
+                hideEl(lokasiVendorWrapEl);
+                return;
+            }
+
+            if (value === 'dikembalikan') {
+                enableField(catatanInputEl, false);
+                hideEl(tujuanWrapEl);
+                hideEl(userWrapEl);
+                hideEl(lokasiVendorWrapEl);
+                return;
+            }
+        }
+
+        activityEl.addEventListener('change', updateTujuanVisibility);
+        updateTujuanVisibility();
+    })();
+    </script>
 
     <?php
 } else {

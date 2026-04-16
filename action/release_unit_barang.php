@@ -55,14 +55,16 @@ try {
     $updated = update_unit_barang($koneksi, $id_unit, [
         'id_user' => null,
         'status' => map_asset_unit_status_for_storage('tersedia'),
-        'tersedia' => 1
+        'tersedia' => 1,
+        'updated_at' => date('Y-m-d H:i:s'),
     ]);
 
     if (!$updated) {
         throw new Exception('Gagal update database');
     }
 
-    log_riwayat_unit_barang($koneksi, [
+    $trackingSaved = log_tracking_unit_barang($koneksi, [
+        'id_unit' => $id_unit,
         'id_unit_barang' => $id_unit,
         'id_produk' => $unit['id_produk'],
         'activity_type' => 'kembali',
@@ -78,6 +80,10 @@ try {
         'note' => $note,
         'id_user_changed' => $operator
     ]);
+    if (!$trackingSaved) {
+        $dbError = trim((string) ($koneksi->error ?? ''));
+        throw new Exception('Gagal menyimpan histori tracking unit' . ($dbError !== '' ? (' | DB: ' . $dbError) : ''));
+    }
 
     log_activity($koneksi, [
         'id_user' => $operator,

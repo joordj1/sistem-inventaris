@@ -1,4 +1,6 @@
+
 <?php
+ob_start();
 session_start();
 include 'koneksi/koneksi.php';
 
@@ -26,6 +28,8 @@ require_auth_roles(['admin', 'petugas', 'user'], [
     'login_redirect' => 'login.php',
     'forbidden_redirect' => 'login.php',
 ]);
+
+ensure_stokgudang_backfill_once($koneksi);
 
 $currentUserRole = get_current_user_role();
 $userMenuVisible = current_user_has_role('admin');
@@ -286,4 +290,5 @@ $pageRoleMap = [
 <script src="assets/js/delete_gudang.js"></script>
 <script src="assets/js/delete_user.js"></script>
 </body>
-</html>
+ </html>
+<?php ob_end_flush(); ?>

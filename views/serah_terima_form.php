@@ -107,9 +107,20 @@ if ($selectedGudangAsal > 0) {
 
 $assetRows = [];
 if ($selectedGudangAsal > 0 && schema_table_exists_now($koneksi, 'unit_barang')) {
+    $unitCodeSelect = 'CONCAT(\'ID-\', ub.id_unit_barang) AS kode_unit';
+    if (schema_has_column_now($koneksi, 'unit_barang', 'serial_number')) {
+        $unitCodeSelect = "COALESCE(NULLIF(TRIM(ub.serial_number), ''), CONCAT('ID-', ub.id_unit_barang)) AS kode_unit";
+    }
+    if (schema_has_column_now($koneksi, 'unit_barang', 'kode_qrcode')) {
+        $unitCodeSelect = "COALESCE(NULLIF(TRIM(ub.serial_number), ''), NULLIF(TRIM(ub.kode_qrcode), ''), CONCAT('ID-', ub.id_unit_barang)) AS kode_unit";
+    }
+    if (schema_has_column_now($koneksi, 'unit_barang', 'kode_unit')) {
+        $unitCodeSelect = "COALESCE(NULLIF(TRIM(ub.kode_unit), ''), NULLIF(TRIM(ub.serial_number), ''), NULLIF(TRIM(ub.kode_qrcode), ''), CONCAT('ID-', ub.id_unit_barang)) AS kode_unit";
+    }
+
     $assetSelect = [
         'ub.id_unit_barang',
-        schema_has_column_now($koneksi, 'unit_barang', 'kode_unit') ? 'ub.kode_unit' : 'NULL AS kode_unit',
+        $unitCodeSelect,
         'ub.status',
         'ub.kondisi',
         'ub.id_gudang',

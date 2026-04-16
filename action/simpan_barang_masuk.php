@@ -109,20 +109,8 @@ try {
     $updProdukStmt->bind_param('iii', $jumlah, $id_gudang, $id_produk);
     $updProdukStmt->execute();
 
-    // Update stokgudang
-    $stokGudangUpdate = $koneksi->prepare("UPDATE stokgudang SET jumlah_stok = jumlah_stok + ? WHERE id_produk = ? AND id_gudang = ?");
-    if ($stokGudangUpdate) {
-        $stokGudangUpdate->bind_param('iii', $jumlah, $id_produk, $id_gudang);
-        $stokGudangUpdate->execute();
-        if ($stokGudangUpdate->affected_rows < 1) {
-            $stokGudangInsert = $koneksi->prepare("INSERT INTO stokgudang (id_gudang, id_produk, jumlah_stok) VALUES (?, ?, ?)");
-            if (!$stokGudangInsert) {
-                throw new \RuntimeException('Gagal menyiapkan insert stokgudang.');
-            }
-            $stokGudangInsert->bind_param('iii', $id_gudang, $id_produk, $jumlah);
-            $stokGudangInsert->execute();
-        }
-    }
+    // Sync stokgudang dari data aktual
+    sync_stok_gudang($koneksi, $id_produk);
 
     $koneksi->commit();
 } catch (\Throwable $txErr) {

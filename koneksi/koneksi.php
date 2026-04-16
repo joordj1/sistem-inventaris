@@ -2,7 +2,7 @@
 $host = "localhost";
 $user = "root";
 $pass = "";
-$db   = "inventaris_barang";
+$db   = "inventaris_pjb";
 
 $koneksi = new mysqli($host, $user, $pass, $db);
 
@@ -562,17 +562,19 @@ function normalize_tracking_activity_type($value, $fallback = 'update') {
         'tambah' => 'tambah',
         'create' => 'tambah',
         'created' => 'tambah',
-        'pinjam' => 'pinjam',
-        'dipinjam' => 'pinjam',
-        'digunakan' => 'pinjam',
-        'sedang digunakan' => 'pinjam',
-        'kembali' => 'kembali',
-        'dikembalikan' => 'kembali',
-        'release' => 'kembali',
-        'pindah' => 'pindah',
-        'dipindahkan' => 'pindah',
-        'pindah lokasi' => 'pindah',
-        'mutasi' => 'pindah',
+        'pinjam' => 'dipinjam',
+        'dipinjam' => 'dipinjam',
+        'digunakan' => 'dipinjam',
+        'sedang digunakan' => 'dipinjam',
+        'kembali' => 'dikembalikan',
+        'dikembalikan' => 'dikembalikan',
+        'release' => 'dikembalikan',
+        'pindah' => 'mutasi',
+        'dipindahkan' => 'mutasi',
+        'pindah lokasi' => 'mutasi',
+        'mutasi' => 'mutasi',
+        'serah terima' => 'serah_terima',
+        'serah_terima' => 'serah_terima',
         'perbaikan' => 'perbaikan',
         'dalam perbaikan' => 'perbaikan',
         'rusak' => 'rusak',
@@ -594,12 +596,13 @@ function normalize_tracking_activity_type($value, $fallback = 'update') {
 function get_tracking_activity_label($value) {
     $labels = [
         'tambah' => 'Registrasi',
-        'pinjam' => 'Peminjaman',
-        'kembali' => 'Pengembalian',
-        'pindah' => 'Perpindahan lokasi',
+        'dipinjam' => 'Dipinjam',
+        'dikembalikan' => 'Dikembalikan',
+        'mutasi' => 'Mutasi',
+        'serah_terima' => 'Serah Terima',
         'perbaikan' => 'Perbaikan',
         'rusak' => 'Rusak',
-        'update' => 'Update',
+        'update' => 'Perubahan',
         'keluarmasuk' => 'Barang masuk/keluar',
         'arsip' => 'Arsip',
     ];
@@ -627,17 +630,17 @@ function infer_tracking_activity_type($data, $fallback = 'update') {
         return 'tambah';
     }
     if ($userBefore === null && $userAfter !== null) {
-        return 'pinjam';
+        return 'dipinjam';
     }
     if ($userBefore !== null && $userAfter === null) {
-        return 'kembali';
+        return 'dikembalikan';
     }
     if ($statusBefore !== $statusAfter) {
         if (in_array($statusAfter, ['dipinjam', 'digunakan', 'sedang digunakan'], true)) {
-            return 'pinjam';
+            return 'dipinjam';
         }
         if ($statusAfter === 'tersedia' && in_array($statusBefore, ['dipinjam', 'digunakan', 'sedang digunakan'], true)) {
-            return 'kembali';
+            return 'dikembalikan';
         }
         if (in_array($statusAfter, ['perbaikan', 'dalam perbaikan'], true)) {
             return 'perbaikan';
@@ -647,7 +650,7 @@ function infer_tracking_activity_type($data, $fallback = 'update') {
         }
     }
     if ($lokasiBefore !== $lokasiAfter && ($lokasiBefore !== '' || $lokasiAfter !== '')) {
-        return 'pindah';
+        return 'mutasi';
     }
     if ($kondisiBefore !== $kondisiAfter) {
         return $kondisiAfter === 'rusak' ? 'rusak' : 'update';
@@ -671,12 +674,14 @@ function build_tracking_note_fallback($data, $scope = 'barang') {
     switch ($activityType) {
         case 'tambah':
             return ucfirst($itemLabel) . ' ditambahkan';
-        case 'pinjam':
+        case 'dipinjam':
             return 'Barang dipinjam';
-        case 'kembali':
+        case 'dikembalikan':
             return 'Barang dikembalikan';
-        case 'pindah':
+        case 'mutasi':
             return 'Perpindahan lokasi';
+        case 'serah_terima':
+            return 'Serah terima barang';
         case 'perbaikan':
             return 'Barang masuk perbaikan';
         case 'rusak':
@@ -755,6 +760,12 @@ function log_tracking_history($koneksi, $data) {
     }
     $actorId = resolve_tracking_actor_id($data);
     $actorNameSnapshot = resolve_tracking_actor_name_snapshot($koneksi, $data);
+    $unitId = null;
+    if (isset($data['id_unit']) && $data['id_unit'] !== null && $data['id_unit'] !== '') {
+        $unitId = intval($data['id_unit']);
+    } elseif (isset($data['id_unit_barang']) && $data['id_unit_barang'] !== null && $data['id_unit_barang'] !== '') {
+        $unitId = intval($data['id_unit_barang']);
+    }
 
     // Required tracking identity
     if (isset($colSet['id_produk'])) {
@@ -792,6 +803,33 @@ function log_tracking_history($koneksi, $data) {
             $values[] = $fieldValue;
             $types .= 's';
         }
+    }
+
+    // Allow caller to force a shared transaction timestamp across multiple unit rows.
+    foreach (['changed_at', 'created_at'] as $timeField) {
+        if (isset($colSet[$timeField]) && isset($data[$timeField]) && trim((string) $data[$timeField]) !== '') {
+            $columns[] = $timeField;
+            $values[] = trim((string) $data[$timeField]);
+            $types .= 's';
+        }
+    }
+
+    if (isset($colSet['id_unit'])) {
+        $columns[] = 'id_unit';
+        $values[] = $unitId;
+        $types .= 'i';
+    }
+
+    if (isset($colSet['id_unit_barang'])) {
+        $columns[] = 'id_unit_barang';
+        $values[] = $unitId;
+        $types .= 'i';
+    }
+
+    // Unit-related payload should always carry a valid unit id in tracking.
+    $isUnitPayload = array_key_exists('id_unit', $data) || array_key_exists('id_unit_barang', $data);
+    if ($isUnitPayload && (isset($colSet['id_unit']) || isset($colSet['id_unit_barang'])) && ($unitId === null || $unitId < 1)) {
+        return false;
     }
 
     foreach (['id_user_sebelum','id_user_sesudah','id_user_terkait','id_user_changed','id_user'] as $field) {
@@ -834,113 +872,8 @@ function log_tracking_history($koneksi, $data) {
     return $stmt->execute();
 }
 
-function log_riwayat_unit_barang($koneksi, $data) {
-    if (!schema_table_exists_now($koneksi, 'riwayat_unit_barang')) {
-        return false;
-    }
-
-    $availableCols = [];
-    $result = $koneksi->query("SHOW COLUMNS FROM riwayat_unit_barang");
-    while ($col = $result ? $result->fetch_assoc() : null) {
-        if (!$col) break;
-        $availableCols[] = $col['Field'];
-    }
-    $colSet = array_flip($availableCols);
-
-    $columns = [];
-    $values = [];
-    $types = '';
-    $activityType = infer_tracking_activity_type($data, 'update');
-    $noteValue = trim((string) ($data['note'] ?? ($data['catatan'] ?? '')));
-    if ($noteValue === '') {
-        $noteValue = build_tracking_note_fallback($data, 'unit');
-    }
-    $actorId = resolve_tracking_actor_id($data);
-    $relatedUserId = nullable_int_id($data['id_user_terkait'] ?? ($data['id_user_sesudah'] ?? $data['id_user'] ?? null));
-    $actorNameSnapshot = resolve_tracking_actor_name_snapshot($koneksi, $data);
-
-    if (isset($colSet['id_unit_barang'])) {
-        $columns[] = 'id_unit_barang';
-        $values[] = $data['id_unit_barang'];
-        $types .= 'i';
-    }
-    if (isset($colSet['id_produk'])) {
-        $columns[] = 'id_produk';
-        $values[] = $data['id_produk'];
-        $types .= 'i';
-    }
-    foreach (['status_sebelum','status_sesudah','kondisi_sebelum','kondisi_sesudah','lokasi_sebelum','lokasi_sesudah'] as $field) {
-        if (isset($colSet[$field])) {
-            $columns[] = $field;
-            $values[] = $data[$field] ?? null;
-            $types .= 's';
-        }
-    }
-
-    $activityColumn = isset($colSet['aktivitas']) ? 'aktivitas' : (isset($colSet['activity_type']) ? 'activity_type' : null);
-    if ($activityColumn !== null) {
-        $columns[] = $activityColumn;
-        $values[] = $activityType;
-        $types .= 's';
-    }
-
-    $noteColumn = isset($colSet['catatan']) ? 'catatan' : (isset($colSet['note']) ? 'note' : null);
-    if ($noteColumn !== null) {
-        $columns[] = $noteColumn;
-        $values[] = $noteValue;
-        $types .= 's';
-    }
-
-    if (isset($colSet['actor_name_snapshot'])) {
-        $columns[] = 'actor_name_snapshot';
-        $values[] = $actorNameSnapshot;
-        $types .= 's';
-    }
-
-    foreach (['id_user_sebelum','id_user_sesudah'] as $field) {
-        if (isset($colSet[$field])) {
-            $columns[] = $field;
-            $values[] = $data[$field] ?? null;
-            $types .= 'i';
-        }
-    }
-
-    if (isset($colSet['id_user_changed'])) {
-        $columns[] = 'id_user_changed';
-        $values[] = $actorId;
-        $types .= 'i';
-    }
-    if (isset($colSet['id_user_terkait'])) {
-        $columns[] = 'id_user_terkait';
-        $values[] = $relatedUserId;
-        $types .= 'i';
-    }
-    if (isset($colSet['id_user'])) {
-        $columns[] = 'id_user';
-        $values[] = isset($colSet['id_user_terkait']) ? $relatedUserId : $actorId;
-        $types .= 'i';
-    }
-
-    if (empty($columns)) {
-        return false;
-    }
-
-    $placeholders = implode(', ', array_fill(0, count($columns), '?'));
-    $query = "INSERT INTO riwayat_unit_barang (" . implode(', ', $columns) . ") VALUES ($placeholders)";
-
-    $stmt = $koneksi->prepare($query);
-    if (!$stmt) {
-        return false;
-    }
-
-    $bindParams = [];
-    $bindParams[] = & $types;
-    foreach ($values as $i => $value) {
-        $bindParams[] = & $values[$i];
-    }
-
-    call_user_func_array([$stmt, 'bind_param'], $bindParams);
-    return $stmt->execute();
+function log_tracking_unit_barang($koneksi, $data) {
+    return log_tracking_history($koneksi, $data);
 }
 
 function get_produk_by_id($koneksi, $id_produk) {
@@ -1106,7 +1039,9 @@ function apply_foundation_barang_state($koneksi, $id_produk, $data = []) {
     } else {
         $activityStatusMap = [
             'pinjam' => 'dipinjam',
+            'dipinjam' => 'dipinjam',
             'kembali' => 'tersedia',
+            'dikembalikan' => 'tersedia',
             'perbaikan' => 'diperbaiki',
             'rusak' => 'rusak',
         ];
@@ -1145,7 +1080,7 @@ function apply_foundation_barang_state($koneksi, $id_produk, $data = []) {
         : '';
     if ($tanggalKembali === '') {
         $hadBorrower = $existingBorrowerId !== null || !empty($produk['tanggal_pinjam']);
-        if ($currentFoundationStatus === 'tersedia' && ($activityType === 'kembali' || $hadBorrower)) {
+        if ($currentFoundationStatus === 'tersedia' && ($activityType === 'dikembalikan' || $hadBorrower)) {
             $tanggalKembali = date('Y-m-d H:i:s');
         } else {
             $tanggalKembali = null;
@@ -1463,12 +1398,13 @@ function get_asset_unit_activity_type_label($value) {
 }
 
 function get_asset_unit_activity_group($value) {
-    $normalized = strtolower(trim((string) ($value ?? '')));
+    $normalized = normalize_tracking_activity_type($value, 'update');
     $groups = [
         'tambah' => 'REGISTRASI',
-        'pinjam' => 'PEMINJAMAN',
-        'kembali' => 'PENGEMBALIAN',
-        'pindah' => 'MUTASI',
+        'dipinjam' => 'PEMINJAMAN',
+        'dikembalikan' => 'PENGEMBALIAN',
+        'mutasi' => 'MUTASI',
+        'serah_terima' => 'SERAH TERIMA',
         'perbaikan' => 'PERBAIKAN',
         'rusak' => 'RUSAK',
         'update' => 'UPDATE STATUS',
@@ -1483,7 +1419,7 @@ function determine_asset_unit_activity_type($fromStatus, $toStatus, $fallback = 
     $to = normalize_asset_unit_status($toStatus);
 
     if ($from === 'dipakai' && $to === 'tersedia') {
-        return 'kembali';
+        return 'dikembalikan';
     }
     if ($to === 'perbaikan') {
         return 'perbaikan';
@@ -1994,7 +1930,7 @@ function insert_asset_unit_row($koneksi, $productData, $unitCode, $operatorId = 
     }
 
     $locationName = get_gudang_name_by_id($koneksi, $productData['id_gudang'] ?? null);
-    log_riwayat_unit_barang($koneksi, [
+    log_tracking_unit_barang($koneksi, [
         'id_unit_barang' => $idUnit,
         'id_produk' => $id_produk,
         'activity_type' => 'tambah',
@@ -2043,11 +1979,15 @@ function get_asset_unit_rows($koneksi, $id_produk) {
 
 function get_asset_unit_history_map($koneksi, $id_produk) {
     $historyMap = [];
-    if (!schema_table_exists($koneksi, 'riwayat_unit_barang')) {
+    if (!schema_table_exists($koneksi, 'tracking_barang')) {
         return $historyMap;
     }
 
-    $stmt = $koneksi->prepare("SELECT id_unit_barang, COUNT(*) AS total FROM riwayat_unit_barang WHERE id_produk = ? GROUP BY id_unit_barang");
+    if (!schema_has_column($koneksi, 'tracking_barang', 'id_unit')) {
+        return $historyMap;
+    }
+
+    $stmt = $koneksi->prepare("SELECT id_unit, COUNT(*) AS total FROM tracking_barang WHERE id_produk = ? AND id_unit IS NOT NULL GROUP BY id_unit");
     if (!$stmt) {
         return $historyMap;
     }
@@ -2056,7 +1996,7 @@ function get_asset_unit_history_map($koneksi, $id_produk) {
     $stmt->execute();
     $result = $stmt->get_result();
     while ($result && ($row = $result->fetch_assoc())) {
-        $historyMap[intval($row['id_unit_barang'])] = intval($row['total']);
+        $historyMap[intval($row['id_unit'])] = intval($row['total']);
     }
 
     return $historyMap;
@@ -2502,6 +2442,352 @@ function get_stok_gudang_qty($koneksi, $id_gudang, $id_produk) {
     return intval($row['jumlah_stok'] ?? 0);
 }
 
+/**
+ * Sinkronisasi stokgudang dari data aktual unit_barang (asset) atau produk (consumable).
+ * Jika $id_produk diberikan, hanya sync produk tersebut.
+ * Jika null, sync semua produk.
+ */
+function sync_stok_gudang($koneksi, $id_produk = null) {
+    if (!schema_table_exists_now($koneksi, 'stokgudang')) {
+        return false;
+    }
+    $hasUnitTable = schema_table_exists_now($koneksi, 'unit_barang');
+
+    if ($id_produk !== null) {
+        $id_produk = intval($id_produk);
+        if ($id_produk < 1) {
+            return false;
+        }
+
+        $stmt = $koneksi->prepare("SELECT id_produk, tipe_barang, jumlah_stok, id_gudang FROM produk WHERE id_produk = ? LIMIT 1");
+        if (!$stmt) {
+            return false;
+        }
+        $stmt->bind_param('i', $id_produk);
+        $stmt->execute();
+        $produk = $stmt->get_result()->fetch_assoc();
+        if (!$produk) {
+            return false;
+        }
+
+        // Hapus stokgudang lama untuk produk ini
+        $delStmt = $koneksi->prepare("DELETE FROM stokgudang WHERE id_produk = ?");
+        if ($delStmt) {
+            $delStmt->bind_param('i', $id_produk);
+            $delStmt->execute();
+        }
+
+        if ($hasUnitTable && ($produk['tipe_barang'] ?? 'consumable') === 'asset') {
+            // Asset: hitung dari unit_barang GROUP BY id_gudang
+            $countStmt = $koneksi->prepare(
+                "SELECT id_gudang, COUNT(*) AS qty
+                 FROM unit_barang
+                 WHERE id_produk = ? AND id_gudang IS NOT NULL
+                 GROUP BY id_gudang"
+            );
+            if ($countStmt) {
+                $countStmt->bind_param('i', $id_produk);
+                $countStmt->execute();
+                $countResult = $countStmt->get_result();
+
+                $insStmt = $koneksi->prepare("INSERT INTO stokgudang (id_gudang, id_produk, jumlah_stok) VALUES (?, ?, ?)");
+                if ($insStmt) {
+                    while ($row = $countResult->fetch_assoc()) {
+                        $gid = intval($row['id_gudang']);
+                        $qty = intval($row['qty']);
+                        $insStmt->bind_param('iii', $gid, $id_produk, $qty);
+                        $insStmt->execute();
+                    }
+                }
+            }
+
+            // Update juga produk.jumlah_stok agar sinkron
+            $totalStmt = $koneksi->prepare("SELECT COUNT(*) AS total FROM unit_barang WHERE id_produk = ? AND id_gudang IS NOT NULL");
+            if ($totalStmt) {
+                $totalStmt->bind_param('i', $id_produk);
+                $totalStmt->execute();
+                $totalRow = $totalStmt->get_result()->fetch_assoc();
+                $totalUnit = intval($totalRow['total'] ?? 0);
+                $updProduk = $koneksi->prepare("UPDATE produk SET jumlah_stok = ? WHERE id_produk = ?");
+                if ($updProduk) {
+                    $updProduk->bind_param('ii', $totalUnit, $id_produk);
+                    $updProduk->execute();
+                }
+            }
+        } else {
+            // Consumable: gunakan produk.jumlah_stok + produk.id_gudang
+            $gid = intval($produk['id_gudang'] ?? 0);
+            $qty = max(0, intval($produk['jumlah_stok'] ?? 0));
+            if ($gid > 0 && $qty > 0) {
+                $insStmt = $koneksi->prepare("INSERT INTO stokgudang (id_gudang, id_produk, jumlah_stok) VALUES (?, ?, ?)");
+                if ($insStmt) {
+                    $insStmt->bind_param('iii', $gid, $id_produk, $qty);
+                    $insStmt->execute();
+                }
+            }
+        }
+
+        update_gudang_kondisi_status($koneksi);
+        return true;
+    }
+
+    // ===== Full sync: semua produk =====
+    $koneksi->begin_transaction();
+    try {
+        // Hapus semua stokgudang
+        $koneksi->query("DELETE FROM stokgudang");
+
+        // Asset: hitung dari unit_barang
+        if ($hasUnitTable) {
+            $assetResult = $koneksi->query(
+                "SELECT ub.id_gudang, ub.id_produk, COUNT(*) AS qty
+                 FROM unit_barang ub
+                 INNER JOIN produk p ON p.id_produk = ub.id_produk AND p.tipe_barang = 'asset'
+                 WHERE ub.id_gudang IS NOT NULL
+                 GROUP BY ub.id_gudang, ub.id_produk"
+            );
+            if ($assetResult) {
+                $insStmt = $koneksi->prepare("INSERT INTO stokgudang (id_gudang, id_produk, jumlah_stok) VALUES (?, ?, ?)");
+                if ($insStmt) {
+                    while ($row = $assetResult->fetch_assoc()) {
+                        $gid = intval($row['id_gudang']);
+                        $pid = intval($row['id_produk']);
+                        $qty = intval($row['qty']);
+                        $insStmt->bind_param('iii', $gid, $pid, $qty);
+                        $insStmt->execute();
+                    }
+                }
+            }
+
+            // Update produk.jumlah_stok untuk semua asset
+            $koneksi->query(
+                "UPDATE produk p
+                 SET p.jumlah_stok = COALESCE((
+                     SELECT COUNT(*) FROM unit_barang ub
+                     WHERE ub.id_produk = p.id_produk AND ub.id_gudang IS NOT NULL
+                 ), 0)
+                 WHERE p.tipe_barang = 'asset'"
+            );
+        }
+
+        // Consumable: dari produk.jumlah_stok + produk.id_gudang
+        $consumableResult = $koneksi->query(
+            "SELECT id_produk, id_gudang, jumlah_stok
+             FROM produk
+             WHERE (tipe_barang IS NULL OR tipe_barang = 'consumable')
+               AND id_gudang IS NOT NULL AND jumlah_stok > 0"
+        );
+        if ($consumableResult) {
+            $insStmt = $koneksi->prepare("INSERT INTO stokgudang (id_gudang, id_produk, jumlah_stok) VALUES (?, ?, ?)");
+            if ($insStmt) {
+                while ($row = $consumableResult->fetch_assoc()) {
+                    $gid = intval($row['id_gudang']);
+                    $pid = intval($row['id_produk']);
+                    $qty = max(0, intval($row['jumlah_stok']));
+                    $insStmt->bind_param('iii', $gid, $pid, $qty);
+                    $insStmt->execute();
+                }
+            }
+        }
+
+        update_gudang_kondisi_status($koneksi);
+        $koneksi->commit();
+        return true;
+    } catch (Exception $e) {
+        $koneksi->rollback();
+        return false;
+    }
+}
+
+/**
+ * Pastikan stokgudang punya UNIQUE INDEX pada (id_gudang, id_produk).
+ * Deduplikasi otomatis sebelum menambahkan constraint.
+ */
+function ensure_stokgudang_unique_index($koneksi) {
+    if (!schema_table_exists_now($koneksi, 'stokgudang')) {
+        return false;
+    }
+    if (stokgudang_has_unique_pair_index($koneksi)) {
+        return true;
+    }
+
+    // Deduplikasi: hapus baris duplikat, pertahankan yang jumlah_stok terbesar
+    $koneksi->query(
+        "DELETE s1 FROM stokgudang s1
+         INNER JOIN stokgudang s2
+         ON s1.id_gudang = s2.id_gudang
+            AND s1.id_produk = s2.id_produk
+            AND s1.id_stok_gudang > s2.id_stok_gudang"
+    );
+
+    // Tambahkan UNIQUE constraint
+    $ok = $koneksi->query(
+        "ALTER TABLE stokgudang ADD UNIQUE INDEX uq_gudang_produk (id_gudang, id_produk)"
+    );
+
+    if ($ok) {
+        // Setelah constraint ditambahkan, sync ulang agar data akurat
+        sync_stok_gudang($koneksi);
+    }
+
+    return (bool) $ok;
+}
+
+function stokgudang_has_unique_pair_index($koneksi) {
+    if (!schema_table_exists_now($koneksi, 'stokgudang')) {
+        return false;
+    }
+
+    $indexResult = $koneksi->query("SHOW INDEX FROM stokgudang");
+    if (!$indexResult) {
+        return false;
+    }
+
+    $indexColumns = [];
+    while ($row = $indexResult->fetch_assoc()) {
+        $indexName = (string) ($row['Key_name'] ?? '');
+        $isUnique = intval($row['Non_unique'] ?? 1) === 0;
+        if ($indexName === '' || !$isUnique) {
+            continue;
+        }
+
+        $seq = intval($row['Seq_in_index'] ?? 0);
+        $col = strtolower(trim((string) ($row['Column_name'] ?? '')));
+        if ($seq < 1 || $col === '') {
+            continue;
+        }
+
+        if (!isset($indexColumns[$indexName])) {
+            $indexColumns[$indexName] = [];
+        }
+        $indexColumns[$indexName][$seq] = $col;
+    }
+
+    foreach ($indexColumns as $colsBySeq) {
+        ksort($colsBySeq);
+        $cols = array_values($colsBySeq);
+        if ($cols === ['id_gudang', 'id_produk']) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function update_gudang_kondisi_status($koneksi, $idGudang = null) {
+    if (!schema_table_exists_now($koneksi, 'gudang') || !schema_table_exists_now($koneksi, 'stokgudang')) {
+        return false;
+    }
+
+    $statusColumn = schema_find_existing_column($koneksi, 'gudang', ['status_gudang', 'status', 'kondisi_gudang', 'kondisi']);
+    if ($statusColumn === null) {
+        return true;
+    }
+
+    if ($idGudang !== null) {
+        $idGudang = intval($idGudang);
+        if ($idGudang < 1) {
+            return false;
+        }
+
+        $sql = "UPDATE gudang g
+                SET g.`$statusColumn` = (
+                    CASE
+                        WHEN COALESCE((
+                            SELECT SUM(COALESCE(sg.jumlah_stok, 0))
+                            FROM stokgudang sg
+                            WHERE sg.id_gudang = g.id_gudang
+                        ), 0) <= 0 THEN 'kosong'
+                        ELSE 'terisi'
+                    END
+                )
+                WHERE g.id_gudang = ?";
+        $stmt = $koneksi->prepare($sql);
+        if (!$stmt) {
+            return false;
+        }
+        $stmt->bind_param('i', $idGudang);
+        return $stmt->execute();
+    }
+
+    $sql = "UPDATE gudang g
+            SET g.`$statusColumn` = (
+                CASE
+                    WHEN COALESCE((
+                        SELECT SUM(COALESCE(sg.jumlah_stok, 0))
+                        FROM stokgudang sg
+                        WHERE sg.id_gudang = g.id_gudang
+                    ), 0) <= 0 THEN 'kosong'
+                    ELSE 'terisi'
+                END
+            )";
+
+    return (bool) $koneksi->query($sql);
+}
+
+function upsert_stokgudang_additive($koneksi, $id_gudang, $id_produk, $jumlah_stok) {
+    $id_gudang = intval($id_gudang);
+    $id_produk = intval($id_produk);
+    $jumlah_stok = intval($jumlah_stok);
+
+    if ($id_gudang < 1 || $id_produk < 1 || $jumlah_stok === 0) {
+        return true;
+    }
+
+    // Prefer ON DUPLICATE KEY UPDATE when pair index exists.
+    if (stokgudang_has_unique_pair_index($koneksi)) {
+        $stmt = $koneksi->prepare(
+            "INSERT INTO stokgudang (id_gudang, id_produk, jumlah_stok)
+             VALUES (?, ?, ?)
+             ON DUPLICATE KEY UPDATE jumlah_stok = jumlah_stok + VALUES(jumlah_stok)"
+        );
+        if ($stmt) {
+            $stmt->bind_param('iii', $id_gudang, $id_produk, $jumlah_stok);
+            $ok = $stmt->execute();
+            if ($ok) {
+                update_gudang_kondisi_status($koneksi, $id_gudang);
+                return true;
+            }
+        }
+    }
+
+    // Fallback for legacy schema without unique composite index.
+    $existsStmt = $koneksi->prepare("SELECT id_stok_gudang, jumlah_stok FROM stokgudang WHERE id_gudang = ? AND id_produk = ? ORDER BY id_stok_gudang ASC LIMIT 1 FOR UPDATE");
+    if (!$existsStmt) {
+        return false;
+    }
+    $existsStmt->bind_param('ii', $id_gudang, $id_produk);
+    $existsStmt->execute();
+    $existsResult = $existsStmt->get_result();
+    $existsRow = $existsResult ? $existsResult->fetch_assoc() : null;
+
+    if ($existsRow) {
+        $newQty = intval($existsRow['jumlah_stok']) + $jumlah_stok;
+        $updateStmt = $koneksi->prepare("UPDATE stokgudang SET jumlah_stok = ? WHERE id_stok_gudang = ?");
+        if (!$updateStmt) {
+            return false;
+        }
+        $stokGudangId = intval($existsRow['id_stok_gudang']);
+        $updateStmt->bind_param('ii', $newQty, $stokGudangId);
+        $ok = $updateStmt->execute();
+        if ($ok) {
+            update_gudang_kondisi_status($koneksi, $id_gudang);
+        }
+        return $ok;
+    }
+
+    $insertStmt = $koneksi->prepare("INSERT INTO stokgudang (id_gudang, id_produk, jumlah_stok) VALUES (?, ?, ?)");
+    if (!$insertStmt) {
+        return false;
+    }
+    $insertStmt->bind_param('iii', $id_gudang, $id_produk, $jumlah_stok);
+    $ok = $insertStmt->execute();
+    if ($ok) {
+        update_gudang_kondisi_status($koneksi, $id_gudang);
+    }
+    return $ok;
+}
+
 function upsert_stok_gudang_quantity($koneksi, $id_gudang, $id_produk, $deltaQty) {
     $id_gudang = intval($id_gudang);
     $id_produk = intval($id_produk);
@@ -2526,6 +2812,7 @@ function upsert_stok_gudang_quantity($koneksi, $id_gudang, $id_produk, $deltaQty
             return false;
         }
         if ($updateDecStmt->affected_rows > 0) {
+            update_gudang_kondisi_status($koneksi, $id_gudang);
             return true;
         }
 
@@ -2551,15 +2838,103 @@ function upsert_stok_gudang_quantity($koneksi, $id_gudang, $id_produk, $deltaQty
         }
         $stokGudangId = intval($existsRow['id_stok_gudang']);
         $updateStmt->bind_param('ii', $newQty, $stokGudangId);
-        return $updateStmt->execute();
+        $ok = $updateStmt->execute();
+        if ($ok) {
+            update_gudang_kondisi_status($koneksi, $id_gudang);
+        }
+        return $ok;
     }
 
     $insertStmt = $koneksi->prepare("INSERT INTO stokgudang (id_gudang, id_produk, jumlah_stok) VALUES (?, ?, ?)");
     if (!$insertStmt) {
         return false;
     }
-    $insertStmt->bind_param('iii', $id_gudang, $id_produk, $newQty);
-    return $insertStmt->execute();
+    $insertStmt->bind_param('iii', $id_gudang, $id_produk, $deltaQty);
+    $ok = $insertStmt->execute();
+    if ($ok) {
+        update_gudang_kondisi_status($koneksi, $id_gudang);
+    }
+    return $ok;
+}
+
+function sync_stokgudang_from_produk($koneksi) {
+    if (!schema_table_exists_now($koneksi, 'produk') || !schema_table_exists_now($koneksi, 'stokgudang')) {
+        return false;
+    }
+
+    $koneksi->begin_transaction();
+    try {
+        // Clean stale/duplicate rows for existing products before refill.
+        $cleanupSql = "DELETE sg FROM stokgudang sg
+                       INNER JOIN produk p ON p.id_produk = sg.id_produk";
+        if (!$koneksi->query($cleanupSql)) {
+            throw new Exception('Gagal membersihkan stokgudang lama.');
+        }
+
+        $sourceSql = "SELECT p.id_gudang, p.id_produk, SUM(COALESCE(p.jumlah_stok, 0)) AS total_stok
+                      FROM produk p
+                      WHERE p.id_gudang IS NOT NULL
+                      GROUP BY p.id_gudang, p.id_produk";
+        $sourceResult = $koneksi->query($sourceSql);
+        if (!$sourceResult) {
+            throw new Exception('Gagal membaca data produk untuk backfill.');
+        }
+
+        $insertStmt = $koneksi->prepare("INSERT INTO stokgudang (id_gudang, id_produk, jumlah_stok) VALUES (?, ?, ?)");
+        if (!$insertStmt) {
+            throw new Exception('Gagal menyiapkan insert backfill stokgudang.');
+        }
+
+        while ($row = $sourceResult->fetch_assoc()) {
+            $idGudang = intval($row['id_gudang'] ?? 0);
+            $idProduk = intval($row['id_produk'] ?? 0);
+            $totalStok = max(0, intval($row['total_stok'] ?? 0));
+
+            if ($idGudang < 1 || $idProduk < 1) {
+                continue;
+            }
+
+            $insertStmt->bind_param('iii', $idGudang, $idProduk, $totalStok);
+            if (!$insertStmt->execute()) {
+                throw new Exception('Gagal mengisi ulang stokgudang dari produk.');
+            }
+        }
+
+        if (!update_gudang_kondisi_status($koneksi)) {
+            throw new Exception('Gagal memperbarui kondisi gudang.');
+        }
+
+        $koneksi->commit();
+        return true;
+    } catch (Exception $e) {
+        $koneksi->rollback();
+        log_event('ERROR', 'STOK', $e->getMessage());
+        return false;
+    }
+}
+
+function ensure_stokgudang_backfill_once($koneksi) {
+    static $alreadyChecked = false;
+    if ($alreadyChecked) {
+        return true;
+    }
+    $alreadyChecked = true;
+
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        return sync_stokgudang_from_produk($koneksi);
+    }
+
+    $flagKey = 'stokgudang_backfill_done_v2';
+    if (!empty($_SESSION[$flagKey])) {
+        return true;
+    }
+
+    $ok = sync_stokgudang_from_produk($koneksi);
+    if ($ok) {
+        $_SESSION[$flagKey] = 1;
+    }
+
+    return $ok;
 }
 
 function save_histori_log_entry($koneksi, $data) {
@@ -2714,49 +3089,6 @@ function fetch_inventory_usage_report_rows($koneksi, $filters = [], $limit = 500
             INNER JOIN produk p ON tb.id_produk = p.id_produk
             LEFT JOIN gudang g ON p.id_gudang = g.id_gudang
             LEFT JOIN user u ON u.id_user = $trackingUserExpr
-        ";
-    }
-
-    if (schema_table_exists_now($koneksi, 'riwayat_unit_barang') && schema_table_exists_now($koneksi, 'unit_barang') && schema_table_exists_now($koneksi, 'produk')) {
-        $unitActivityCol = schema_find_existing_column($koneksi, 'riwayat_unit_barang', ['aktivitas', 'activity_type']);
-        $unitNoteCol = schema_find_existing_column($koneksi, 'riwayat_unit_barang', ['catatan', 'note']);
-        $unitDateCol = schema_find_existing_column($koneksi, 'riwayat_unit_barang', ['created_at', 'changed_at', 'updated_at']);
-
-        $unitUserCols = [];
-        foreach (['id_user_terkait', 'id_user_sesudah', 'id_user', 'user_id', 'id_user_changed', 'id_user_sebelum'] as $column) {
-            if (schema_has_column_now($koneksi, 'riwayat_unit_barang', $column)) {
-                $unitUserCols[] = 'hr.' . $column;
-            }
-        }
-
-        $unitStatusCols = [];
-        foreach (['status_sesudah', 'status', 'status_sebelum'] as $column) {
-            if (schema_has_column_now($koneksi, 'riwayat_unit_barang', $column)) {
-                $unitStatusCols[] = 'hr.' . $column;
-            }
-        }
-
-        $unitUserExpr = !empty($unitUserCols) ? 'COALESCE(' . implode(', ', $unitUserCols) . ')' : 'NULL';
-        $unitStatusExpr = !empty($unitStatusCols) ? 'COALESCE(' . implode(', ', $unitStatusCols) . ', ub.status, p.status)' : 'COALESCE(ub.status, p.status)';
-
-        $reportParts[] = "
-            SELECT
-                p.id_produk AS barang_id,
-                p.kode_produk,
-                p.nama_produk,
-                $unitUserExpr AS user_id,
-                COALESCE(NULLIF(u.nama, ''), NULLIF(u.username, ''), '-') AS nama_user,
-                $unitStatusExpr AS status_barang,
-                COALESCE(NULLIF(hr.lokasi_sesudah, ''), NULLIF(hr.lokasi_sebelum, ''), NULLIF(ub.lokasi_custom, ''), NULLIF(g.nama_gudang, ''), '-') AS gudang_lokasi,
-                " . ($unitDateCol !== null ? ('hr.' . $unitDateCol) : 'NULL') . " AS tanggal_aktivitas,
-                " . ($unitActivityCol !== null ? ('hr.' . $unitActivityCol) : 'NULL') . " AS aktivitas,
-                " . ($unitNoteCol !== null ? ('hr.' . $unitNoteCol) : 'NULL') . " AS catatan,
-                'riwayat_unit_barang' AS sumber
-            FROM riwayat_unit_barang hr
-            INNER JOIN unit_barang ub ON hr.id_unit_barang = ub.id_unit_barang
-            INNER JOIN produk p ON ub.id_produk = p.id_produk
-            LEFT JOIN gudang g ON ub.id_gudang = g.id_gudang
-            LEFT JOIN user u ON u.id_user = $unitUserExpr
         ";
     }
 
@@ -2919,6 +3251,33 @@ function ensure_user_management_schema($koneksi) {
         UNIQUE KEY uniq_bidang_nama (nama_bidang),
         UNIQUE KEY uniq_bidang_kode (kode_bidang)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
+
+    // Seed data bidang jika tabel kosong
+    $cekBidang = $koneksi->query("SELECT COUNT(*) AS cnt FROM bidang");
+    if ($cekBidang && intval($cekBidang->fetch_assoc()['cnt']) === 0) {
+        $daftarBidang = [
+            ['SO', 'SO'],
+            ['CBM', 'CBM'],
+            ['MMRK', 'MMRK'],
+            ['KEU', 'KEU'],
+            ['SEKUM', 'SEKUM'],
+            ['SDM', 'SDM'],
+            ['PENGADAAN', 'PENGADAAN'],
+            ['ICC', 'ICC'],
+            ['OUTAGE', 'OUTAGE'],
+            ['SIPIL & LINGK', 'SIPIL_LINGK'],
+            ['K3 & KEAMANAN', 'K3_KEAMANAN'],
+            ['RENDAL OP', 'RENDAL_OP'],
+            ['RENDAL HAL', 'RENDAL_HAL'],
+        ];
+        $seedStmt = $koneksi->prepare("INSERT IGNORE INTO bidang (nama_bidang, kode_bidang, status) VALUES (?, ?, 'aktif')");
+        if ($seedStmt) {
+            foreach ($daftarBidang as $b) {
+                $seedStmt->bind_param('ss', $b[0], $b[1]);
+                $seedStmt->execute();
+            }
+        }
+    }
 
     if (!schema_has_column_now($koneksi, 'user', 'created_at')) {
         $koneksi->query("ALTER TABLE user ADD COLUMN created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP");
@@ -3896,6 +4255,7 @@ function get_latest_product_photo($koneksi, $id_produk) {
 
 ensure_priority_one_schema($koneksi);
 ensure_priority_two_schema($koneksi);
+ensure_stokgudang_unique_index($koneksi);
 migrate_legacy_qr_urls_to_public($koneksi);
 
 if (session_status() === PHP_SESSION_ACTIVE && isset($_SESSION['role'])) {

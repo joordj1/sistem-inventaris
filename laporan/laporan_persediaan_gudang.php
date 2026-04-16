@@ -6,10 +6,22 @@ function formatRupiah($angka)
     return 'Rp ' . number_format($angka, 0, ',', '.');
 }
 
-$query = "SELECT g.nama_gudang, g.lokasi, p.kode_produk, p.nama_produk,
-                 p.jumlah_stok AS stok,
+$query = "SELECT g.nama_gudang, g.lokasi, p.kode_produk, p.nama_produk, p.tipe_barang,
+                 CASE
+                     WHEN p.tipe_barang = 'asset' THEN COALESCE((
+                         SELECT COUNT(*) FROM unit_barang ub
+                         WHERE ub.id_produk = p.id_produk AND ub.id_gudang = s.id_gudang
+                     ), s.jumlah_stok)
+                     ELSE s.jumlah_stok
+                 END AS stok,
                  COALESCE(NULLIF(p.harga_default, 0), p.harga_satuan, 0) AS harga_default,
-                 (p.jumlah_stok * COALESCE(NULLIF(p.harga_default, 0), p.harga_satuan, 0)) AS nilai_total
+                 CASE
+                     WHEN p.tipe_barang = 'asset' THEN COALESCE((
+                         SELECT COUNT(*) FROM unit_barang ub2
+                         WHERE ub2.id_produk = p.id_produk AND ub2.id_gudang = s.id_gudang
+                     ), s.jumlah_stok) * COALESCE(NULLIF(p.harga_default, 0), p.harga_satuan, 0)
+                     ELSE s.jumlah_stok * COALESCE(NULLIF(p.harga_default, 0), p.harga_satuan, 0)
+                 END AS nilai_total
           FROM Produk p
           JOIN StokGudang s ON p.id_produk = s.id_produk
           JOIN Gudang g ON s.id_gudang = g.id_gudang

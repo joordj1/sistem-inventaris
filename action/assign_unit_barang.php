@@ -59,6 +59,8 @@ if (!empty($unit['id_user'])) {
 }
 
 $previousLocation = get_asset_unit_location_text($koneksi, $unit);
+$usedByLabel = trim((string) (get_user_name_by_id($koneksi, $id_user) ?? ''));
+$usedLocation = $usedByLabel !== '' ? ('Digunakan oleh ' . $usedByLabel) : 'Digunakan oleh user';
 $newStoredStatus = map_asset_unit_status_for_storage('dipakai');
 $unitLabel = trim((string) ($unit['kode_unit'] ?? ''));
 $unitLabel = $unitLabel !== '' ? $unitLabel : ('Unit #' . $id_unit);
@@ -76,7 +78,8 @@ try {
         throw new Exception('Gagal update database');
     }
 
-    log_riwayat_unit_barang($koneksi, [
+    $trackingSaved = log_tracking_unit_barang($koneksi, [
+        'id_unit' => $id_unit,
         'id_unit_barang' => $id_unit,
         'id_produk' => $unit['id_produk'],
         'activity_type' => 'pinjam',
@@ -85,13 +88,17 @@ try {
         'kondisi_sebelum' => $unit['kondisi'],
         'kondisi_sesudah' => $unit['kondisi'],
         'lokasi_sebelum' => $previousLocation,
-        'lokasi_sesudah' => $previousLocation,
+        'lokasi_sesudah' => $usedLocation,
         'id_user_sebelum' => $unit['id_user'],
         'id_user_sesudah' => $id_user,
         'id_user_terkait' => $id_user,
         'note' => $note,
         'id_user_changed' => $operator
     ]);
+    if (!$trackingSaved) {
+        $dbError = trim((string) ($koneksi->error ?? ''));
+        throw new Exception('Gagal menyimpan histori tracking unit' . ($dbError !== '' ? (' | DB: ' . $dbError) : ''));
+    }
 
     log_activity($koneksi, [
         'id_user' => $operator,

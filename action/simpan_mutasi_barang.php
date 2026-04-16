@@ -261,11 +261,6 @@ try {
             throw new Exception('Unit asset ' . $unitLabel . ' sedang terhubung ke user. Gunakan serah terima formal atau release terlebih dahulu.');
         }
 
-        $unitStatus = normalize_asset_unit_status($unit['status'] ?? null);
-        if ($unitStatus !== 'tersedia') {
-            throw new Exception('Unit asset ' . $unitLabel . ' tidak dalam status tersedia.');
-        }
-
         $kondisiSesudah = $item['kondisi_sesudah'] !== '' ? $item['kondisi_sesudah'] : ($unit['kondisi'] ?? 'baik');
         $updateStmt = $koneksi->prepare("UPDATE unit_barang SET id_gudang = ?, kondisi = ?, updated_at = NOW() WHERE id_unit_barang = ?");
         if (!$updateStmt) {
@@ -274,6 +269,9 @@ try {
         $updateStmt->bind_param('isi', $gudangTujuanId, $kondisiSesudah, $item['unit_barang_id']);
         if (!$updateStmt->execute()) {
             throw new Exception('Gagal memindahkan unit asset ke gudang tujuan.');
+        }
+        if ($updateStmt->affected_rows === 0) {
+            throw new Exception('Unit asset ' . $unitLabel . ' gagal diupdate. Pastikan data valid.');
         }
 
         $qtyUnit = 1;
@@ -294,7 +292,8 @@ try {
             throw new Exception('Detail mutasi asset gagal disimpan.');
         }
 
-        log_riwayat_unit_barang($koneksi, [
+        log_tracking_unit_barang($koneksi, [
+            'id_unit' => $item['unit_barang_id'],
             'id_unit_barang' => $item['unit_barang_id'],
             'id_produk' => $unit['id_produk'],
             'activity_type' => 'pindah',
@@ -395,6 +394,26 @@ try {
             'foto_dokumentasi' => $fotoDokumentasi,
         ],
     ]);
+
+    // Sync stokgudang dari data aktual unit_barang/produk
+    $syncedProdukIds = [];
+    foreach ($consumableItems as $item) {
+        $pid = intval($item['produk_id']);
+        if (!in_array($pid, $syncedProdukIds, true)) {
+            sync_stok_gudang($koneksi, $pid);
+            $syncedProdukIds[] = $pid;
+        }
+    }
+    foreach ($assetItems as $item) {
+        $unit = get_unit_barang_by_id($koneksi, $item['unit_barang_id']);
+        if ($unit) {
+            $pid = intval($unit['id_produk']);
+            if (!in_array($pid, $syncedProdukIds, true)) {
+                sync_stok_gudang($koneksi, $pid);
+                $syncedProdukIds[] = $pid;
+            }
+        }
+    }
 
     $koneksi->commit();
     header('Location: ../index.php?page=mutasi_barang&view=detail&id=' . $mutasiId . '&success=Mutasi barang berhasil disimpan.');

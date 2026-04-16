@@ -48,8 +48,8 @@ CREATE TABLE IF NOT EXISTS unit_barang (
   CONSTRAINT fk_unit_barang_user FOREIGN KEY (id_user) REFERENCES user(id_user) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- 3) riwayat_unit_barang table: unit movement and usage history
-CREATE TABLE IF NOT EXISTS riwayat_unit_barang (
+-- 3) tracking_barang table: unit movement and usage history
+CREATE TABLE IF NOT EXISTS tracking_barang (
   id_riwayat INT NOT NULL AUTO_INCREMENT,
   id_unit_barang INT NOT NULL,
   id_produk INT NOT NULL,
@@ -70,12 +70,12 @@ CREATE TABLE IF NOT EXISTS riwayat_unit_barang (
   INDEX idx_riwayat_unit (id_unit_barang),
   INDEX idx_riwayat_produk (id_produk),
   INDEX idx_riwayat_user_changed (id_user_changed),
-  CONSTRAINT fk_riwayat_unit_barang_unit FOREIGN KEY (id_unit_barang) REFERENCES unit_barang(id_unit_barang) ON DELETE CASCADE,
-  CONSTRAINT fk_riwayat_unit_barang_produk FOREIGN KEY (id_produk) REFERENCES produk(id_produk) ON DELETE CASCADE,
-  CONSTRAINT fk_riwayat_unit_barang_user_changed FOREIGN KEY (id_user_changed) REFERENCES user(id_user) ON DELETE SET NULL,
-  CONSTRAINT fk_riwayat_unit_barang_user_sebelum FOREIGN KEY (id_user_sebelum) REFERENCES user(id_user) ON DELETE SET NULL,
-  CONSTRAINT fk_riwayat_unit_barang_user_sesudah FOREIGN KEY (id_user_sesudah) REFERENCES user(id_user) ON DELETE SET NULL,
-  CONSTRAINT fk_riwayat_unit_barang_user_terkait FOREIGN KEY (id_user_terkait) REFERENCES user(id_user) ON DELETE SET NULL
+  CONSTRAINT fk_tracking_barang_unit FOREIGN KEY (id_unit_barang) REFERENCES unit_barang(id_unit_barang) ON DELETE CASCADE,
+  CONSTRAINT fk_tracking_barang_produk FOREIGN KEY (id_produk) REFERENCES produk(id_produk) ON DELETE CASCADE,
+  CONSTRAINT fk_tracking_barang_user_changed FOREIGN KEY (id_user_changed) REFERENCES user(id_user) ON DELETE SET NULL,
+  CONSTRAINT fk_tracking_barang_user_sebelum FOREIGN KEY (id_user_sebelum) REFERENCES user(id_user) ON DELETE SET NULL,
+  CONSTRAINT fk_tracking_barang_user_sesudah FOREIGN KEY (id_user_sesudah) REFERENCES user(id_user) ON DELETE SET NULL,
+  CONSTRAINT fk_tracking_barang_user_terkait FOREIGN KEY (id_user_terkait) REFERENCES user(id_user) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;

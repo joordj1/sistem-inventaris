@@ -104,22 +104,17 @@ if ($isValidUnitId) {
     }
 }
 
-// --- Latest photo (from product histori_log) ---
-$latestPhoto = null;
-if ($unit) {
-    $latestPhoto = get_latest_product_photo($koneksi, $unit['id_produk']);
-}
-
 // --- Unit-specific history (same schema-aware approach as halaman detail unit) ---
 $historyRows = [];
-if ($unit && schema_table_exists($koneksi, 'riwayat_unit_barang')) {
-    $historyIdCol       = schema_find_existing_column($koneksi, 'riwayat_unit_barang', ['id', 'id_riwayat']);
-    $historyActivityCol = schema_find_existing_column($koneksi, 'riwayat_unit_barang', ['aktivitas', 'activity_type']);
-    $historyNoteCol     = schema_find_existing_column($koneksi, 'riwayat_unit_barang', ['catatan', 'note']);
-    $historyTimeCol     = schema_find_existing_column($koneksi, 'riwayat_unit_barang', ['created_at', 'changed_at']);
-    $historyActorCol    = schema_find_existing_column($koneksi, 'riwayat_unit_barang', ['id_user_changed', 'id_user']);
-    $historyRelatedCol  = schema_find_existing_column($koneksi, 'riwayat_unit_barang', ['id_user_terkait', 'id_user_sesudah', 'id_user']);
-    $historySnapshotCol = schema_find_existing_column($koneksi, 'riwayat_unit_barang', ['actor_name_snapshot', 'user_name_snapshot']);
+if ($unit && schema_table_exists($koneksi, 'tracking_barang')) {
+    $historyIdCol       = schema_find_existing_column($koneksi, 'tracking_barang', ['id_tracking', 'id', 'id_riwayat']);
+    $historyActivityCol = schema_find_existing_column($koneksi, 'tracking_barang', ['aktivitas', 'activity_type']);
+    $historyNoteCol     = schema_find_existing_column($koneksi, 'tracking_barang', ['catatan', 'note']);
+    $historyTimeCol     = schema_find_existing_column($koneksi, 'tracking_barang', ['created_at', 'changed_at']);
+    $historyActorCol    = schema_find_existing_column($koneksi, 'tracking_barang', ['id_user_changed', 'id_user']);
+    $historyRelatedCol  = schema_find_existing_column($koneksi, 'tracking_barang', ['id_user_terkait', 'id_user_sesudah', 'id_user']);
+    $historySnapshotCol = schema_find_existing_column($koneksi, 'tracking_barang', ['actor_name_snapshot', 'user_name_snapshot']);
+    $historyUnitIdCol   = schema_find_existing_column($koneksi, 'tracking_barang', ['id_unit']);
 
     $historySelect = [
         ($historyIdCol       !== null ? "hr.`$historyIdCol`"       : '0')    . ' AS history_id',
@@ -134,10 +129,10 @@ if ($unit && schema_table_exists($koneksi, 'riwayat_unit_barang')) {
         ($historySnapshotCol !== null ? "hr.`$historySnapshotCol`" : 'NULL') . ' AS actor_name_snapshot',
     ];
 
-    $hq = 'SELECT ' . implode(', ', $historySelect) . ",
+        $hq = 'SELECT ' . implode(', ', $historySelect) . ",
                   u_actor.nama AS nama_user_actor,
                   u_related.nama AS nama_user_terkait
-           FROM riwayat_unit_barang hr";
+            FROM tracking_barang hr";
 
     $hq .= $historyActorCol !== null
         ? "\n           LEFT JOIN user u_actor ON hr.`$historyActorCol` = u_actor.id_user"
@@ -147,7 +142,11 @@ if ($unit && schema_table_exists($koneksi, 'riwayat_unit_barang')) {
         ? "\n           LEFT JOIN user u_related ON hr.`$historyRelatedCol` = u_related.id_user"
         : "\n           LEFT JOIN user u_related ON 1 = 0";
 
-    $hq .= "\n           WHERE hr.id_unit_barang = ?";
+    if ($historyUnitIdCol !== null) {
+        $hq .= "\n           WHERE hr.`$historyUnitIdCol` = ?";
+    } else {
+        $hq .= "\n           WHERE 1 = 0";
+    }
     if ($historyTimeCol !== null) {
         $hq .= "\n           ORDER BY hr.`$historyTimeCol` DESC";
         if ($historyIdCol !== null) {
@@ -158,7 +157,9 @@ if ($unit && schema_table_exists($koneksi, 'riwayat_unit_barang')) {
 
     $stmtHist = $koneksi->prepare($hq);
     if ($stmtHist) {
-        $stmtHist->bind_param('i', $unit['id_unit_barang']);
+        if ($historyUnitIdCol !== null) {
+            $stmtHist->bind_param('i', $unit['id_unit_barang']);
+        }
         $stmtHist->execute();
         $resHist = $stmtHist->get_result();
         while ($resHist && ($row = $resHist->fetch_assoc())) {
@@ -206,22 +207,6 @@ function scan_kondisi_badge($kondisi) {
             border: 0;
             border-radius: 14px;
             box-shadow: 0 8px 28px rgba(15, 23, 42, 0.08);
-        }
-        .photo-frame {
-            min-height: 180px;
-            max-height: 300px;
-            border: 1px solid #e2e8f0;
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: #ffffff;
-            overflow: hidden;
-        }
-        .photo-frame img {
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
         }
         .history-item {
             border: 1px solid #e2e8f0;
@@ -273,7 +258,7 @@ function scan_kondisi_badge($kondisi) {
         <div class="card scan-card mb-3">
             <div class="card-body">
                 <div class="row g-3">
-                    <div class="col-12 col-md-7">
+                    <div class="col-12 col-md-12">
                         <div class="d-flex align-items-center gap-2 mb-2">
                             <h2 class="h5 mb-0"><?= htmlspecialchars($unit['nama_produk'] ?? '-') ?></h2>
                             <span class="badge bg-light text-secondary unit-id-badge border">Unit #<?= $unit['id_unit_barang'] ?></span>
@@ -297,18 +282,6 @@ function scan_kondisi_badge($kondisi) {
                         <?php if (!empty($unit['nama_user'])): ?>
                             <div class="mb-2"><strong>Pengguna:</strong> <?= htmlspecialchars($unit['nama_user']) ?></div>
                         <?php endif; ?>
-                    </div>
-                    <div class="col-12 col-md-5">
-                        <div class="photo-frame">
-                            <?php if (!empty($latestPhoto['photo_path'])): ?>
-                                <img src="<?= htmlspecialchars($latestPhoto['photo_path']) ?>" alt="Foto terbaru barang">
-                            <?php else: ?>
-                                <div class="text-center text-muted px-3">
-                                    <div class="fw-semibold">Belum ada foto</div>
-                                    <small>Foto terbaru akan tampil setelah dokumentasi mutasi/serah terima diunggah.</small>
-                                </div>
-                            <?php endif; ?>
-                        </div>
                     </div>
                 </div>
             </div>

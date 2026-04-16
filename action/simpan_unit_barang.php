@@ -73,7 +73,8 @@ if (ensure_asset_qr_file($id_unit, $qrValue) === null) {
     ]);
 }
 
-log_riwayat_unit_barang($koneksi, [
+log_tracking_unit_barang($koneksi, [
+    'id_unit' => $id_unit,
     'id_unit_barang' => $id_unit,
     'id_produk' => $id_produk,
     'activity_type' => 'tambah',

@@ -25,7 +25,6 @@ $rows = fetch_mutasi_barang_rows($koneksi, [
     'produk_id' => $filterProduk,
 ], 500);
 
-// Debug sementara: aktifkan dengan ?debug_print=1 untuk cek dataset mode print.
 $debugPrint = isset($_GET['debug_print']) && $_GET['debug_print'] === '1';
 
 $totalDokumen = 0;

@@ -21,6 +21,26 @@ if ($legacyError !== '') {
     $flash = ['type' => 'error', 'message' => $legacyError];
     unset($_SESSION['error']);
 }
+
+$oldInput = $_SESSION['old_input_tambah_produk'] ?? [];
+$fieldErrors = $_SESSION['form_errors_tambah_produk'] ?? [];
+unset($_SESSION['old_input_tambah_produk'], $_SESSION['form_errors_tambah_produk']);
+
+function old_value(array $oldInput, $name, $default = '') {
+    if (array_key_exists($name, $_POST)) {
+        return (string) $_POST[$name];
+    }
+    if (array_key_exists($name, $oldInput)) {
+        return (string) $oldInput[$name];
+    }
+    return (string) $default;
+}
+
+function field_error(array $fieldErrors, $name) {
+    return trim((string) ($fieldErrors[$name] ?? ''));
+}
+
+$selectedTipeBarang = old_value($oldInput, 'tipe_barang', 'consumable');
 ?>
 
 <div class="form-container product-form-modern">
@@ -28,7 +48,7 @@ if ($legacyError !== '') {
         <h5>Form Tambah Data Produk</h5>
         <p class="form-header-subtitle mb-0">Lengkapi data dengan format yang benar untuk menjaga konsistensi inventaris.</p>
     </div>
-    <?php if ($flash && !empty($flash['message'])): ?>
+    <?php if ($flash && !empty($flash['message']) && (empty($fieldErrors) || ($flash['type'] ?? '') !== 'error')): ?>
         <?php $flashClass = 'alert-info'; ?>
         <?php if ($flash['type'] === 'success') $flashClass = 'alert-success'; ?>
         <?php if ($flash['type'] === 'error') $flashClass = 'alert-danger'; ?>
@@ -43,70 +63,79 @@ if ($legacyError !== '') {
                 <div class="row g-3 st-form-grid">
                     <div class="col-md-6">
                         <label for="code" class="form-label">Kode Produk</label>
-                        <input type="text" class="form-control" id="code" name="code" placeholder="PRD-001" required>
+                        <input type="text" class="form-control <?= field_error($fieldErrors, 'code') !== '' ? 'is-invalid' : '' ?>" id="code" name="code" placeholder="PRD-001" value="<?= htmlspecialchars(old_value($oldInput, 'code')) ?>" required>
+                        <div id="error-code" class="invalid-feedback"><?= htmlspecialchars(field_error($fieldErrors, 'code')) ?></div>
                         <small class="text-muted">Kode harus unik dan mudah dilacak.</small>
                     </div>
                     <div class="col-md-6">
                         <label for="namaproduk" class="form-label">Nama Produk</label>
-                        <input type="text" class="form-control" id="namaproduk" name="namaproduk" placeholder="Kertas A4" required>
+                        <input type="text" class="form-control <?= field_error($fieldErrors, 'namaproduk') !== '' ? 'is-invalid' : '' ?>" id="namaproduk" name="namaproduk" placeholder="Kertas A4" value="<?= htmlspecialchars(old_value($oldInput, 'namaproduk')) ?>" required>
+                        <div id="error-namaproduk" class="invalid-feedback"><?= htmlspecialchars(field_error($fieldErrors, 'namaproduk')) ?></div>
                         <small class="text-muted">Gunakan nama yang deskriptif dan konsisten.</small>
                     </div>
                     <div class="col-12">
                         <label for="deskripsi" class="form-label">Deskripsi</label>
-                        <textarea class="form-control" id="deskripsi" name="deskripsi" rows="3" placeholder="Spesifikasi singkat"></textarea>
+                        <textarea class="form-control" id="deskripsi" name="deskripsi" rows="3" placeholder="Spesifikasi singkat"><?= htmlspecialchars(old_value($oldInput, 'deskripsi')) ?></textarea>
                         <small class="text-muted">Opsional untuk catatan spesifikasi.</small>
                     </div>
                     <div class="col-md-6">
                         <label for="kategori" class="form-label">Kategori</label>
-                        <select class="form-select" id="kategori" name="kategori" required>
+                        <select class="form-select <?= field_error($fieldErrors, 'kategori') !== '' ? 'is-invalid' : '' ?>" id="kategori" name="kategori" required>
                             <option value="">-- Pilih --</option>
                             <?php while ($kategori = $resultKategori->fetch_assoc()): ?>
-                                <option value="<?php echo $kategori['id_kategori']; ?>"><?php echo $kategori['nama_kategori']; ?></option>
+                                <option value="<?php echo $kategori['id_kategori']; ?>" <?= (string) $kategori['id_kategori'] === old_value($oldInput, 'kategori') ? 'selected' : '' ?>><?php echo $kategori['nama_kategori']; ?></option>
                             <?php endwhile; ?>
                         </select>
+                        <div id="error-kategori" class="invalid-feedback"><?= htmlspecialchars(field_error($fieldErrors, 'kategori')) ?></div>
                         <small class="text-muted">Pilih kategori sesuai jenis barang.</small>
                     </div>
                     <div class="col-md-6">
                         <label for="gudang" class="form-label">Gudang</label>
-                        <select class="form-select" id="gudang" name="gudang" required>
+                        <select class="form-select <?= field_error($fieldErrors, 'gudang') !== '' ? 'is-invalid' : '' ?>" id="gudang" name="gudang" required>
                             <option value="">-- Pilih --</option>
                             <?php while ($gudang = $resultGudang->fetch_assoc()): ?>
-                                <option value="<?php echo $gudang['id_gudang']; ?>"><?php echo $gudang['nama_gudang']; ?></option>
+                                <option value="<?php echo $gudang['id_gudang']; ?>" <?= (string) $gudang['id_gudang'] === old_value($oldInput, 'gudang') ? 'selected' : '' ?>><?php echo $gudang['nama_gudang']; ?></option>
                             <?php endwhile; ?>
                         </select>
+                        <div id="error-gudang" class="invalid-feedback"><?= htmlspecialchars(field_error($fieldErrors, 'gudang')) ?></div>
                         <small class="text-muted">Gudang awal penyimpanan produk.</small>
                     </div>
                     <div class="col-md-6">
                         <label for="stok" class="form-label">Stok</label>
-                        <input type="number" class="form-control" id="stok" name="stok" placeholder="10" min="1" step="1" required>
+                        <input type="number" class="form-control <?= field_error($fieldErrors, 'stok') !== '' ? 'is-invalid' : '' ?>" id="stok" name="stok" placeholder="10" min="1" step="1" value="<?= htmlspecialchars(old_value($oldInput, 'stok')) ?>" required>
+                        <div id="error-stok" class="invalid-feedback"><?= htmlspecialchars(field_error($fieldErrors, 'stok')) ?></div>
                         <small class="text-muted">Minimal 1 saat tambah produk.</small>
                     </div>
                     <div class="col-md-6">
                         <label for="satuan" class="form-label">Satuan</label>
-                        <input type="text" class="form-control" id="satuan" name="satuan" placeholder="pcs" required>
+                        <input type="text" class="form-control <?= field_error($fieldErrors, 'satuan') !== '' ? 'is-invalid' : '' ?>" id="satuan" name="satuan" placeholder="pcs" value="<?= htmlspecialchars(old_value($oldInput, 'satuan')) ?>" required>
+                        <div id="error-satuan" class="invalid-feedback"><?= htmlspecialchars(field_error($fieldErrors, 'satuan')) ?></div>
                         <small class="text-muted">Contoh: pcs, box, unit.</small>
                     </div>
                     <div class="col-md-6">
                         <label for="tipe_barang" class="form-label">Tipe</label>
-                        <select name="tipe_barang" id="tipe_barang" class="form-select" required>
-                            <option value="consumable">Consumable</option>
-                            <option value="asset">Asset</option>
+                        <select name="tipe_barang" id="tipe_barang" class="form-select <?= field_error($fieldErrors, 'tipe_barang') !== '' ? 'is-invalid' : '' ?>" required>
+                            <option value="consumable" <?= $selectedTipeBarang === 'consumable' ? 'selected' : '' ?>>Consumable</option>
+                            <option value="asset" <?= $selectedTipeBarang === 'asset' ? 'selected' : '' ?>>Asset</option>
                         </select>
+                        <div id="error-tipe_barang" class="invalid-feedback"><?= htmlspecialchars(field_error($fieldErrors, 'tipe_barang')) ?></div>
                         <small class="text-muted">Asset akan membentuk unit tracking.</small>
                     </div>
                     <div class="col-md-6" id="unitCountContainer" style="display:none;">
                         <label for="jumlah_unit" class="form-label">Jumlah Unit Awal</label>
-                        <input type="number" class="form-control" id="jumlah_unit" name="jumlah_unit" placeholder="Mengikuti stok" min="0" value="0" readonly>
+                        <input type="number" class="form-control" id="jumlah_unit" name="jumlah_unit" placeholder="Mengikuti stok" min="0" value="<?= htmlspecialchars(old_value($oldInput, 'jumlah_unit', '0')) ?>" readonly>
                         <small class="text-muted">Otomatis mengikuti stok untuk asset.</small>
                     </div>
                     <div class="col-md-6">
                         <label for="harga" class="form-label">Harga</label>
-                        <input type="text" class="form-control" id="harga" name="harga" placeholder="150000" required inputmode="numeric" oninput="formatHargaInput(this)">
+                        <input type="text" class="form-control <?= field_error($fieldErrors, 'harga') !== '' ? 'is-invalid' : '' ?>" id="harga" name="harga" placeholder="150000" value="<?= htmlspecialchars(old_value($oldInput, 'harga')) ?>" required inputmode="numeric" oninput="formatHargaInput(this)">
+                        <div id="error-harga" class="invalid-feedback"><?= htmlspecialchars(field_error($fieldErrors, 'harga')) ?></div>
                         <small class="form-text text-muted">Masukkan angka tanpa titik/koma.</small>
                     </div>
                     <div class="col-12">
                         <label for="gambar_produk" class="form-label">Gambar Produk</label>
-                        <input type="file" class="form-control" id="gambar_produk" name="gambarproduk" accept=".jpg,.jpeg,.png,.webp,.gif">
+                        <input type="file" class="form-control <?= field_error($fieldErrors, 'gambarproduk') !== '' ? 'is-invalid' : '' ?>" id="gambar_produk" name="gambarproduk" accept=".jpg,.jpeg,.png,.webp,.gif">
+                        <div id="error-gambarproduk" class="invalid-feedback"><?= htmlspecialchars(field_error($fieldErrors, 'gambarproduk')) ?></div>
                         <small class="text-muted">Belum ada file dipilih.</small>
                         <div class="upload-preview"></div>
                     </div>
@@ -217,6 +246,7 @@ document.getElementById('formTambahProduk').addEventListener('submit', function 
     validateFormProdukRealtime();
     if (document.getElementById('btnSimpanProduk').disabled) {
         e.preventDefault();
+        return;
     }
 });
 

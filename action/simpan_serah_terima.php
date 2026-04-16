@@ -308,7 +308,8 @@ try {
             throw new Exception('Detail asset serah terima gagal disimpan.');
         }
 
-        log_riwayat_unit_barang($koneksi, [
+        log_tracking_unit_barang($koneksi, [
+            'id_unit' => $item['unit_barang_id'],
             'id_unit_barang' => $item['unit_barang_id'],
             'id_produk' => $unit['id_produk'],
             'activity_type' => 'pinjam',

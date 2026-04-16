@@ -1,4 +1,6 @@
+
 <?php
+ob_start();
 require_auth_roles(['admin'], [
     'login_redirect' => 'login.php',
     'forbidden_redirect' => 'index.php?page=dashboard',
@@ -118,6 +120,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 ?>
+<?php ob_end_flush(); ?>
 
 <!-- Form Edit User -->
 <div class="form-container">

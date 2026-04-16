@@ -87,12 +87,16 @@ $activityType = determine_asset_unit_activity_type($currentStatus, $targetStatus
 
 $koneksi->begin_transaction();
 try {
+
+    // 1. Update status unit utama
     $updated = update_unit_barang($koneksi, $id_unit, $fields);
     if (!$updated) {
         throw new Exception('Gagal update database');
     }
 
-    log_riwayat_unit_barang($koneksi, [
+    // 2. Catat tracking/riwayat setelah status utama pasti berubah
+    $trackingSaved = log_tracking_unit_barang($koneksi, [
+        'id_unit' => $id_unit,
         'id_unit_barang' => $id_unit,
         'id_produk' => $unit['id_produk'],
         'activity_type' => $activityType,
@@ -108,6 +112,10 @@ try {
         'note' => $note,
         'id_user_changed' => $operator
     ]);
+    if (!$trackingSaved) {
+        $dbError = trim((string) ($koneksi->error ?? ''));
+        throw new Exception('Gagal menyimpan histori tracking unit' . ($dbError !== '' ? (' | DB: ' . $dbError) : ''));
+    }
 
     log_activity($koneksi, [
         'id_user' => $operator,

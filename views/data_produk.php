@@ -62,9 +62,9 @@ function resolveProductLocation($row, $assetLocationMap) {
         return $masterGudang;
     }
 
-    $stokGudang = normalizeProductLocationValue($row['nama_gudang_stok'] ?? null);
-    if ($stokGudang !== null) {
-        return $stokGudang;
+    $assetLokasi = normalizeProductLocationValue($assetLocationMap[(int)($row['id_produk'] ?? 0)] ?? null);
+    if ($assetLokasi !== null) {
+        return $assetLokasi;
     }
 
     return 'Tidak Memiliki Lokasi';
@@ -134,7 +134,7 @@ $selected_kategori = isset($_GET['kategori']) ? intval($_GET['kategori']) : '';
             <option value="<?= $row_kategori['id_kategori'] ?>" <?= ((int)$row_kategori['id_kategori'] === (int)$selected_kategori) ? 'selected' : '' ?>><?= htmlspecialchars($row_kategori['nama_kategori']) ?></option>
         <?php endwhile; endif; ?>
     </select>
-    <input type="text" name="search" placeholder="Cari nama barang / kode..." value="<?= htmlspecialchars($_GET['search'] ?? '') ?>" style="min-width:220px;flex:1">
+    <input type="text" name="search" placeholder="Cari kode, nama, harga satuan, total harga..." value="<?= htmlspecialchars($_GET['search'] ?? '') ?>" style="min-width:220px;flex:1">
     <button type="submit" class="btn btn-primary btn-search"><i class="bi bi-search"></i></button>
     <?php if (!empty($_GET['search']) || !empty($_GET['kategori'])): ?>
     <a href="index.php?page=data_produk" class="btn btn-outline-secondary btn-search">Reset</a>
@@ -147,7 +147,7 @@ $selected_kategori = isset($_GET['kategori']) ? intval($_GET['kategori']) : '';
         <thead class="text-center" style="background:#f1f5f9">
             <tr>
                 <th style="width:36px"><input type="checkbox" id="chk-all" title="Pilih semua asset" onchange="toggleAllQR(this)"></th>
-                <th data-sort="num" style="width:42px">No</th>
+                <th style="width:42px">No</th>
                 <th data-sort="text">Kode</th>
                 <th data-sort="text">Nama Barang</th>
                 <th>Tipe</th>
@@ -167,13 +167,15 @@ $selected_kategori = isset($_GET['kategori']) ? intval($_GET['kategori']) : '';
                              produk.jumlah_stok, produk.satuan,
                              (COALESCE(NULLIF(produk.harga_default, 0), produk.harga_satuan, 0) * produk.jumlah_stok) AS total_nilai_view, 
                              produk.gambar_produk, produk.status, produk.kondisi, produk.lokasi_custom AS produk_lokasi_custom, produk.tersedia, 
-                             gudang_stok.nama_gudang AS nama_gudang_stok,
-                             gudang_master.nama_gudang AS nama_gudang_master
+                             gudang_master.nama_gudang AS nama_gudang_master,
+                             COUNT(ub.id_unit_barang) AS total_unit,
+                             SUM(CASE WHEN LOWER(TRIM(COALESCE(ub.status, ''))) = 'tersedia' THEN 1 ELSE 0 END) AS tersedia_unit,
+                             SUM(CASE WHEN LOWER(TRIM(COALESCE(ub.status, ''))) IN ('dipinjam','digunakan','sedang digunakan') THEN 1 ELSE 0 END) AS dipakai_unit,
+                             SUM(CASE WHEN LOWER(TRIM(COALESCE(ub.kondisi, ''))) IN ('rusak') THEN 1 ELSE 0 END) AS rusak_unit
                       FROM produk
                       LEFT JOIN kategori ON produk.id_kategori = kategori.id_kategori
-                      LEFT JOIN StokGudang ON produk.id_produk = StokGudang.id_produk
-                      LEFT JOIN gudang AS gudang_stok ON StokGudang.id_gudang = gudang_stok.id_gudang
-                      LEFT JOIN gudang AS gudang_master ON produk.id_gudang = gudang_master.id_gudang";
+                      LEFT JOIN gudang AS gudang_master ON produk.id_gudang = gudang_master.id_gudang
+                      LEFT JOIN unit_barang ub ON ub.id_produk = produk.id_produk AND ub.deleted_at IS NULL";
 
             if ($selected_kategori) {
                 $query .= " WHERE produk.id_kategori = '$selected_kategori'";
@@ -181,8 +183,16 @@ $selected_kategori = isset($_GET['kategori']) ? intval($_GET['kategori']) : '';
             if (isset($_GET['search']) && !empty($_GET['search'])) {
                 $search = $koneksi->real_escape_string($_GET['search']);
                 $query .= $selected_kategori ? " AND" : " WHERE";
-                $query .= " (produk.kode_produk LIKE '%$search%' OR produk.nama_produk LIKE '%$search%')";
+                $query .= " (produk.kode_produk LIKE '%$search%'
+                            OR produk.nama_produk LIKE '%$search%'
+                            OR CAST(produk.harga_satuan AS CHAR) LIKE '%$search%'
+                            OR CAST((produk.jumlah_stok * produk.harga_satuan) AS CHAR) LIKE '%$search%')";
             }
+            $query .= " GROUP BY produk.id_produk, produk.kode_produk, produk.nama_produk, produk.tipe_barang, kategori.nama_kategori,
+                                    produk.harga_default, produk.harga_satuan, produk.jumlah_stok, produk.satuan,
+                                    produk.gambar_produk, produk.status, produk.kondisi, produk.lokasi_custom, produk.tersedia,
+                                    gudang_master.nama_gudang";
+            $query .= " ORDER BY produk.kode_produk ASC";
             $result = $koneksi->query($query);
             $nomor = 1;
         ?>
@@ -191,7 +201,17 @@ $selected_kategori = isset($_GET['kategori']) ? intval($_GET['kategori']) : '';
             <?php while ($row = $result->fetch_assoc()): ?>
                 <?php $isAsset = ($row['tipe_barang'] ?? 'consumable') === 'asset'; ?>
                 <tr>
-                    <td class="text-center"><input type="checkbox" class="chk-qr" data-id="<?= $row['id_produk'] ?>" data-name="<?= htmlspecialchars($row['nama_produk']) ?>" data-kode="<?= htmlspecialchars($row['kode_produk']) ?>" onchange="updateQRBtn()" <?= !$isAsset ? 'disabled title="Hanya produk asset yang dapat dicetak QR"' : '' ?>></td>
+                    <td class="text-center">
+                        <input type="checkbox"
+                            class="chk-qr check_item"
+                            id="chk-qr-<?= $row['id_produk'] ?>"
+                            data-id="<?= $row['id_produk'] ?>"
+                            data-name="<?= htmlspecialchars($row['nama_produk']) ?>"
+                            data-kode="<?= htmlspecialchars($row['kode_produk']) ?>"
+                            onchange="updateQRBtn()"
+                            <?= !$isAsset ? 'disabled title="Hanya produk asset yang dapat dicetak QR"' : '' ?>
+                        >
+                    </td>
                     <td class="text-center"><?= $nomor++ ?></td>
                     <td><?= htmlspecialchars($row['kode_produk']) ?></td>
                     <td>
@@ -203,28 +223,15 @@ $selected_kategori = isset($_GET['kategori']) ? intval($_GET['kategori']) : '';
                     <td style="max-width:160px;font-size:0.82rem"><?= htmlspecialchars(resolveProductLocation($row, $assetLocationMap)) ?></td>
                     <td>
                         <?php if (($row['tipe_barang'] ?? 'consumable') === 'asset'): 
-                            $stats = $koneksi->query("SELECT COUNT(id_unit_barang) AS total_unit,
-                                SUM(CASE WHEN LOWER(TRIM(COALESCE(status, ''))) = 'tersedia' THEN 1 ELSE 0 END) AS tersedia_unit,
-                                SUM(CASE WHEN LOWER(TRIM(COALESCE(status, ''))) IN ('dipinjam','digunakan','sedang digunakan') THEN 1 ELSE 0 END) AS dipakai_unit,
-                                SUM(CASE WHEN LOWER(TRIM(COALESCE(status, ''))) IN ('rusak','perbaikan','dalam perbaikan') THEN 1 ELSE 0 END) AS rusak_unit
-                                FROM unit_barang
-                                WHERE id_produk = " . intval($row['id_produk']))->fetch_assoc();
-                            $totalUnit = intval($stats['total_unit'] ?? 0);
-                            $tersediaUnit = intval($stats['tersedia_unit'] ?? 0);
-                            $dipakaiUnit = intval($stats['dipakai_unit'] ?? 0);
-                            $rusakUnit = intval($stats['rusak_unit'] ?? 0);
+                            $totalUnit = intval($row['total_unit'] ?? 0);
+                            $tersediaUnit = intval($row['tersedia_unit'] ?? 0);
+                            $dipakaiUnit = intval($row['dipakai_unit'] ?? 0);
+                            $rusakUnit = intval($row['rusak_unit'] ?? 0);
                             $stokProduk = max(0, intval($row['jumlah_stok'] ?? 0));
 
                             if ($totalUnit === 0 && $stokProduk > 0) {
                                 $totalUnit = $stokProduk;
-                                $dipakaiUnit = 0;
-                                $rusakUnit = 0;
                                 $tersediaUnit = $stokProduk;
-                            } else {
-                                $tersediaFallback = max($stokProduk - $dipakaiUnit - $rusakUnit, 0);
-                                if ($stokProduk > 0 && $tersediaUnit === 0 && $dipakaiUnit === 0 && $rusakUnit === 0) {
-                                    $tersediaUnit = $tersediaFallback;
-                                }
                             }
                         ?>
                             <span class="summary-chip">Unit: <?= $totalUnit ?></span>
@@ -277,11 +284,11 @@ $selected_kategori = isset($_GET['kategori']) ? intval($_GET['kategori']) : '';
             else { return; }
             const tbody = table.querySelector('tbody');
             const rows = Array.from(tbody.querySelectorAll('tr'));
-            const col = idx + 1; // offset for checkbox col
+            const col = Array.from(th.parentElement.children).indexOf(th) + 1;
             const type = th.getAttribute('data-sort');
             rows.sort(function(a, b) {
-                const cellA = a.querySelector('td:nth-child(' + (col + 1) + ')');
-                const cellB = b.querySelector('td:nth-child(' + (col + 1) + ')');
+                const cellA = a.querySelector('td:nth-child(' + col + ')');
+                const cellB = b.querySelector('td:nth-child(' + col + ')');
                 if (!cellA || !cellB) return 0;
                 let va = cellA.getAttribute('data-val') || cellA.textContent.trim();
                 let vb = cellB.getAttribute('data-val') || cellB.textContent.trim();
@@ -297,7 +304,7 @@ $selected_kategori = isset($_GET['kategori']) ? intval($_GET['kategori']) : '';
 
 // ---- Mass QR Print ----
 function toggleAllQR(master) {
-    document.querySelectorAll('.chk-qr:not(:disabled)').forEach(function(chk) {
+    document.querySelectorAll('.check_item:not(:disabled)').forEach(function(chk) {
         chk.checked = master.checked;
     });
     updateQRBtn();

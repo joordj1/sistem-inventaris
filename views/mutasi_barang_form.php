@@ -105,9 +105,20 @@ if ($selectedGudangAsal > 0) {
 
 $assetRows = [];
 if ($selectedGudangAsal > 0 && schema_table_exists_now($koneksi, 'unit_barang')) {
+    $unitCodeSelect = 'CONCAT(\'ID-\', ub.id_unit_barang) AS kode_unit';
+    if (schema_has_column_now($koneksi, 'unit_barang', 'serial_number')) {
+        $unitCodeSelect = "COALESCE(NULLIF(TRIM(ub.serial_number), ''), CONCAT('ID-', ub.id_unit_barang)) AS kode_unit";
+    }
+    if (schema_has_column_now($koneksi, 'unit_barang', 'kode_qrcode')) {
+        $unitCodeSelect = "COALESCE(NULLIF(TRIM(ub.serial_number), ''), NULLIF(TRIM(ub.kode_qrcode), ''), CONCAT('ID-', ub.id_unit_barang)) AS kode_unit";
+    }
+    if (schema_has_column_now($koneksi, 'unit_barang', 'kode_unit')) {
+        $unitCodeSelect = "COALESCE(NULLIF(TRIM(ub.kode_unit), ''), NULLIF(TRIM(ub.serial_number), ''), NULLIF(TRIM(ub.kode_qrcode), ''), CONCAT('ID-', ub.id_unit_barang)) AS kode_unit";
+    }
+
     $assetSelect = [
         'ub.id_unit_barang',
-        schema_has_column_now($koneksi, 'unit_barang', 'kode_unit') ? 'ub.kode_unit' : 'NULL AS kode_unit',
+        $unitCodeSelect,
         'ub.status',
         'ub.kondisi',
         'ub.id_gudang',
@@ -137,7 +148,7 @@ if ($selectedGudangAsal > 0 && schema_table_exists_now($koneksi, 'unit_barang'))
             WHERE ub.id_gudang = " . intval($selectedGudangAsal) . "
               AND COALESCE(p.tipe_barang, 'consumable') = 'asset'
               AND COALESCE(ub.id_user, 0) = 0
-              AND LOWER(TRIM(COALESCE(ub.status, 'tersedia'))) = 'tersedia'
+              AND ub.deleted_at IS NULL
             ORDER BY p.nama_produk ASC, ub.id_unit_barang DESC";
     $result = $koneksi->query($sql);
     while ($result && ($row = $result->fetch_assoc())) {
