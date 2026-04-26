@@ -1,4 +1,6 @@
 <?php
+ini_set('display_errors', '0');
+error_reporting(E_ALL);
 include '../koneksi/koneksi.php';
 require_once __DIR__ . '/simpan_histori_log.php';
 require_auth_roles(['admin', 'petugas'], [
@@ -82,7 +84,7 @@ try {
         'id_unit' => $id_unit,
         'id_unit_barang' => $id_unit,
         'id_produk' => $unit['id_produk'],
-        'activity_type' => 'pinjam',
+        'activity_type' => 'assign',
         'status_sebelum' => map_asset_unit_status_for_storage($currentStatus),
         'status_sesudah' => $newStoredStatus,
         'kondisi_sebelum' => $unit['kondisi'],
@@ -138,7 +140,7 @@ try {
     ]);
 
     sync_foundation_barang_from_units($koneksi, $unit['id_produk'], [
-        'activity_type' => 'pinjam',
+        'activity_type' => 'assign',
         'actor_user_id' => $operator,
         'note' => $note,
     ]);
